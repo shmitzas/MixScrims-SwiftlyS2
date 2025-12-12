@@ -1,0 +1,309 @@
+using Microsoft.Extensions.Logging;
+using SwiftlyS2.Shared.Players;
+using SwiftlyS2.Shared.Menus;
+using SwiftlyS2.Core.Menus.OptionsBase;
+
+namespace MixScrims;
+
+public partial class MixScrims
+{
+    private List<IPlayer> playingCtPlayers { get; set; } = [];
+    private List<IPlayer> playingTPlayers { get; set; } = [];
+    private IPlayer? winnerCaptain { get; set; } = null;
+
+    /// <summary>
+    /// Initiates the knife round phase of the match.
+    /// </summary>
+    private void StartKnifeRound()
+    {
+        matchState = MatchState.KnifeRound;
+        PrintMessageToAllPlayers(Core.Localizer["stateChanged.knifeRoundStarted"]);
+
+        playingTPlayers = pickedTPlayers.ToList();
+        playingCtPlayers = pickedCtPlayers.ToList();
+        pickedCtPlayers.Clear();
+        pickedTPlayers.Clear();
+        readyPlayers.Clear();
+
+        UnpauseMatch();
+        //MovePlayersToDesignatedTeamsPreMatch();
+        Core.Engine.ExecuteCommand("exec mixscrims/knife_round.cfg");
+    }
+
+    /// <summary>
+    /// Prompts the winning team's captain to choose the starting side for the match.
+    /// </summary>
+    private void PromptWinnerCaptainToChoseStartingSide(Team winnerTeam)
+    {
+        matchState = MatchState.PickingStartingSide;
+
+        if (winnerTeam == Team.CT)
+        {
+            if (captainCt == null)
+            {
+                logger.LogError("PromptWinnerCaptainToChoseStartingSide: CT Captain is null.");
+                return;
+            }
+
+            winnerCaptain = captainCt;
+
+            PrintMessageToAllPlayers(Core.Localizer["knifeRound.winnerCt"]);
+            PrintMessageToAllPlayers(Core.Localizer["knifeRound.waitingForSidePickCt", captainCt.Controller.PlayerName]);
+
+            // Bot captain: auto "Switch"
+            if (IsBot(captainCt))
+            {
+                HandleCaptainSideChoice(captainCt, "Switch");
+                return;
+            }
+
+            var menu = BuildSidePickingMenu();
+            if (IsPlayerValid(captainCt))
+            {
+                Core.MenusAPI.OpenMenuForPlayer(captainCt, menu);
+            }
+        }
+
+        if (winnerTeam == Team.T)
+        {
+            if (captainT == null)
+            {
+                logger.LogError("PromptWinnerCaptainToChoseStartingSide: T Captain is null.");
+                return;
+            }
+
+            winnerCaptain = captainT;
+
+            PrintMessageToAllPlayers(Core.Localizer["knifeRound.winnerT"]);
+            PrintMessageToAllPlayers(Core.Localizer["knifeRound.waitingForSidePickT", captainT.Controller.PlayerName]);
+
+            // Bot captain: auto "Switch"
+            if (IsBot(captainT))
+            {
+                HandleCaptainSideChoice(captainT, "Switch");
+                return;
+            }
+
+            var menu = BuildSidePickingMenu();
+            if (IsPlayerValid(captainT))
+            {
+                Core.MenusAPI.OpenMenuForPlayer(captainT, menu);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Builds and returns a menu that allows the user to choose between switching or staying on their current side.
+    /// </summary>
+    private IMenuAPI BuildSidePickingMenu()
+    {
+        var builder = Core.MenusAPI
+            .CreateBuilder()
+            .Design.SetMenuTitle(Core.Localizer["menu.sidePickingTitle"])
+            .Design.SetMenuTitleVisible(true)
+            .Design.SetMenuFooterVisible(true)
+            .EnableSound()
+            .DisableExit()
+            .SetPlayerFrozen(false)
+            .SetAutoCloseDelay(0);
+
+        var switchBtn = new ButtonMenuOption("Switch");
+        switchBtn.Click += async (sender, args) =>
+        {
+            HandleCaptainSideChoice(args.Player, "Switch");
+            await ValueTask.CompletedTask;
+        };
+        builder.AddOption(switchBtn);
+
+        var stayBtn = new ButtonMenuOption("Stay");
+        stayBtn.Click += async (sender, args) =>
+        {
+            HandleCaptainSideChoice(args.Player, "Stay");
+            await ValueTask.CompletedTask;
+        };
+        builder.AddOption(stayBtn);
+
+        return builder.Build();
+    }
+
+    /// <summary>
+    /// Handles the captain's choice regarding starting sides in the game.
+    /// </summary>
+    private void HandleCaptainSideChoice(IPlayer captain, string choice)
+    {
+        if (captain == null)
+        {
+            logger.LogError("HandleCaptainSideChoice: Captain is null.");
+            return;
+        }
+
+        CloseMenuForPlayer(captain);
+
+        if (string.Equals(choice, "Switch", StringComparison.OrdinalIgnoreCase))
+        {
+            SwitchStartingSides(captain);
+            return;
+        }
+        if (string.Equals(choice, "Stay", StringComparison.OrdinalIgnoreCase))
+        {
+            StayStartingSides(captain);
+            return;
+        }
+
+        logger.LogError("HandleCaptainSideChoice: Invalid choice made by captain.");
+    }
+
+    /// <summary>
+    /// Switches the starting sides of the Counter-Terrorist and Terrorist teams, including their players and captains.
+    /// </summary>
+    private void SwitchStartingSides(IPlayer captain)
+    {
+        if (captain == null)
+        {
+            logger.LogError("SwitchStartingSides: Captain is null.");
+            return;
+        }
+
+        if (captain.PlayerPawn == null)
+        {
+            logger.LogError("SwitchStartingSides: Captain PlayerPawn is null.");
+            return;
+        }
+
+        if (captain.PlayerPawn.TeamNum == 3)
+        {
+            PrintMessageToAllPlayers(Core.Localizer["knifeRound.captainChoseSwitchCt", captain.Controller.PlayerName]);
+        }
+
+        if (captain.PlayerPawn.TeamNum == 2)
+        {
+            PrintMessageToAllPlayers(Core.Localizer["knifeRound.captainChoseSwitchT", captain.Controller.PlayerName]);
+        }
+
+        logger.LogInformation("SwitchStartingSides: Switching sides...");
+
+        var oldCtCaptain = captainCt;
+        var oldTCaptain = captainT;
+        var oldPlayingCtPlayers = playingCtPlayers.ToList();
+        var oldPlayingTPlayers = playingTPlayers.ToList();
+
+        playingCtPlayers = oldPlayingTPlayers;
+        playingTPlayers = oldPlayingCtPlayers;
+        captainCt = oldTCaptain;
+        captainT = oldCtCaptain;
+
+        Core.Scheduler.DelayBySeconds(0.2f, () =>
+        {
+            SetTeamName(Team.CT, captainCt?.Controller.PlayerName);
+            SetTeamName(Team.T, captainT?.Controller.PlayerName);
+
+            // Set flag to skip validation
+            isMovingPlayersToTeams = true;
+
+            // Move old CT players (now in playingTPlayers) to T
+            foreach (var player in playingTPlayers)
+            {
+                logger.LogInformation($"SwitchStartingSides: Moving {player.Controller.PlayerName} to T");
+                if (IsBot(player))
+                {
+                    Core.Scheduler.NextTick(() => player.SwitchTeam(Team.T));
+                }
+                player.ChangeTeam(Team.T);
+            }
+
+            // Move old T players (now in playingCtPlayers) to CT
+            foreach (var player in playingCtPlayers)
+            {
+                logger.LogInformation($"SwitchStartingSides: Moving {player.Controller.PlayerName} to CT");
+                if (IsBot(player))
+                {
+                    Core.Scheduler.NextTick(() => player.SwitchTeam(Team.CT));
+                }
+                player.ChangeTeam(Team.CT);
+            }
+
+            // Reset flag after teams are moved
+            Core.Scheduler.NextTick(() => isMovingPlayersToTeams = false);
+
+            StartMatch();
+        });
+    }
+
+    /// <summary>
+    /// Keeps the teams on their starting sides based on the captain's current team.
+    /// </summary>
+    private void StayStartingSides(IPlayer? captain)
+    {
+        if (captain == null)
+        {
+            logger.LogError("StayStartingSides: Captain is null.");
+            return;
+        }
+
+        if (captain.PlayerPawn == null)
+        {
+            logger.LogError("StayStartingSides: Captain PlayerPawn is null.");
+            return;
+        }
+
+        if (captain.PlayerPawn.TeamNum == 3)
+        {
+            PrintMessageToAllPlayers(Core.Localizer["knifeRound.captainChoseStayCt", captain.Controller.PlayerName]);
+        }
+
+        if (captain.PlayerPawn.TeamNum == 2)
+        {
+            PrintMessageToAllPlayers(Core.Localizer["knifeRound.captainChoseStayT", captain.Controller.PlayerName]);
+        }
+
+        StartMatch();
+    }
+
+    /// <summary>
+    /// Assigns players to their designated teams before the match begins.
+    /// </summary>
+    private void MovePlayersToDesignatedTeamsPreMatch()
+    {
+        logger.LogInformation("MovePlayersToDesignatedTeamsPreMatch");
+        
+        // Set flag to skip validation
+        isMovingPlayersToTeams = true;
+        
+        var players = GetPlayingPlayers();
+        players.RemoveAll(p => playingCtPlayers.Contains(p) || playingTPlayers.Contains(p));
+
+        foreach (var player in players)
+        {
+            if (IsBot(player))
+            {
+                continue;
+            }
+            logger.LogInformation($"Moving {player.Controller.PlayerName} to SPEC");
+            player.ChangeTeam(Team.Spectator);
+        }
+
+        foreach (var player in playingCtPlayers)
+        {
+            logger.LogInformation($"Moving {player.Controller.PlayerName} to CT");
+            if (IsBot(player))
+            {
+                Core.Scheduler.NextTick(() => player.SwitchTeam(Team.CT));
+            }
+            player.ChangeTeam(Team.CT);
+        }
+        
+
+        foreach (var player in playingTPlayers)
+        {
+            logger.LogInformation($"Moving {player.Controller.PlayerName} to T");
+            if (IsBot(player))
+            {
+                Core.Scheduler.NextTick(() => player.SwitchTeam(Team.T));
+            }
+            player.ChangeTeam(Team.T);
+        }
+        
+        // Reset flag after teams are moved
+        Core.Scheduler.NextTick(() => isMovingPlayersToTeams = false);
+    }
+}

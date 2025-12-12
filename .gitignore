@@ -10,6 +10,7 @@
 *.userosscache
 *.sln.docstates
 *.env
+*.sln
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -416,3 +417,5 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+.editorconfig
+MixScrims/llms-full.txt

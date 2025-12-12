@@ -1,0 +1,196 @@
+using Microsoft.Extensions.Logging;
+using SwiftlyS2.Shared.Players;
+using SwiftlyS2.Shared.Menus;
+using SwiftlyS2.Core.Menus.OptionsBase;
+
+namespace MixScrims;
+
+public partial class MixScrims
+{
+    private List<VotedMap> votedMaps { get; set; } = [];
+    private IMenuAPI? mapVotingMenu { get; set; } = null;
+
+    /// <summary>
+    /// Presents map voting options to players and starts the map voting phase
+    /// </summary>
+    private void StartMapVotingPhase()
+    {
+        logger.LogInformation("StartMapVotingPhase");
+        matchState = MatchState.MapVoting;
+        votedMaps.Clear();
+        PrintMessageToAllPlayers(Core.Localizer["stateChanged.mapVotingStarted"]);
+
+        var mapsToVote = GetMapsToVote();
+        if (mapsToVote.Count == 0)
+        {
+            PrintMessageToAllPlayers(Core.Localizer["error.noMapsConfigured"]);
+            logger.LogError("No maps available for voting. Check your configuration.");
+            matchState = MatchState.Reset;
+            return;
+        }
+
+        // shuffle maps order
+        mapsToVote = mapsToVote.OrderBy(_ => Guid.NewGuid()).ToList();
+
+        // Build the map voting menu
+        var builder = Core.MenusAPI
+            .CreateBuilder()
+            .Design.SetMenuTitle(Core.Localizer["menu.mapVotingTitle"])
+            .Design.SetMenuTitleVisible(true)
+            .Design.SetMenuFooterVisible(true)
+            .EnableSound()
+            .SetPlayerFrozen(false)
+            .SetAutoCloseDelay(0);
+
+        logger.LogInformation("StartMapVotingPhase: {Count} maps available", mapsToVote.Count);
+
+        foreach (var map in mapsToVote)
+        {
+            logger.LogInformation("  - {Map}", map.DisplayName);
+            var button = new ButtonMenuOption(map.DisplayName);
+            button.Click += async (sender, args) =>
+            {
+                RegisterMapVoteByName(args.Player, map.DisplayName);
+                await ValueTask.CompletedTask;
+            };
+            builder.AddOption(button);
+        }
+
+        mapVotingMenu = null;
+        mapVotingMenu = builder.Build();
+
+        // Open menu for eligible players
+        var players = GetPlayers();
+        foreach (var player in players)
+        {
+            if (player == null || !IsPlayerValid(player) || IsBot(player))
+                continue;
+
+            DisplayMapVotingMenu(player);
+        }
+
+        // Announce picked map after configured time
+        var token = Core.Scheduler.DelayBySeconds(cfg.DefaultVoteTimeSeconds, AnnouncePickedMap);
+        Core.Scheduler.StopOnMapChange(token);
+    }
+
+    /// <summary>
+    /// Registers a player's vote by map display name.
+    /// </summary>
+    private void RegisterMapVoteByName(IPlayer player, string mapDisplayName)
+    {
+        var playerName = player.Controller?.PlayerName ?? $"#{player.PlayerID}";
+        logger.LogInformation("Player {Player} voted for map {Map}", playerName, mapDisplayName);
+
+        var votedMap = cfg.Maps.FirstOrDefault(m => string.Equals(m.DisplayName, mapDisplayName, StringComparison.OrdinalIgnoreCase));
+        if (votedMap == null)
+        {
+            logger.LogError("RegisterMapVote: Map not found in configuration: {Map}", mapDisplayName);
+            PrintMessageToPlayer(player, Core.Localizer["error.mapNotFound", mapDisplayName]);
+            DisplayMapVotingMenu(player);
+            return;
+        }
+
+        // Remove previous vote if any
+        var previouslyVoted = votedMaps.FirstOrDefault(m => m.VotedBy.Any(v => v == player.PlayerID));
+        if (previouslyVoted != null)
+        {
+            logger.LogInformation("{Player} already voted for {Prev}. Removing vote...", playerName, previouslyVoted.Map.DisplayName);
+            previouslyVoted.Votes = Math.Max(0, previouslyVoted.Votes - 1);
+            previouslyVoted.VotedBy.Remove(player.PlayerID);
+        }
+
+        // Add vote
+        var existingVote = votedMaps.FirstOrDefault(m => m.Map.MapName == votedMap.MapName);
+        int votes;
+        if (existingVote != null)
+        {
+            existingVote.Votes++;
+            existingVote.VotedBy.Add(player.PlayerID);
+            votes = existingVote.Votes;
+        }
+        else
+        {
+            votedMaps.Add(new VotedMap { Map = votedMap, Votes = 1, VotedBy = [player.PlayerID] });
+            votes = 1;
+        }
+
+        PrintMessageToPlayer(player, Core.Localizer["map.voteRegistered", playerName, votedMap.DisplayName, votes]);
+
+        CloseMenuForPlayer(player);
+    }
+
+    /// <summary>
+    /// Displays a map voting menu to the specified player, allowing them to revote on a list of maps.
+    /// </summary>
+    private void DisplayMapVotingMenu(IPlayer player)
+    {
+        if (mapVotingMenu == null)
+        {
+            logger.LogError("DisplayMapVotingMenu: mapVotingMenu is null");
+            return;
+        }
+
+        if (player == null || !IsPlayerValid(player) || IsBot(player))
+            return;
+
+        try
+        {
+            Core.MenusAPI.OpenMenuForPlayer(player, mapVotingMenu);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Error displaying map voting menu to {Player}: {Error}", player.Controller?.PlayerName, ex);
+        }
+    }
+
+    /// <summary>
+    /// Announces the map selected for the match and updates the match state accordingly.
+    /// </summary>
+    private void AnnouncePickedMap()
+    {
+        var players = GetPlayingPlayers();
+
+        foreach (var player in players)
+        {
+            if (player == null)
+            {
+                logger.LogError("AnnouncePickedMap: player is null");
+                continue;
+            }
+
+            var currentMenu = Core.MenusAPI.GetCurrentMenu(player);
+            if (mapVotingMenu != null && currentMenu != null)
+            {
+                Core.MenusAPI.CloseMenuForPlayer(player, currentMenu);
+            }
+        }
+
+        matchState = MatchState.MapChosen;
+
+        VotedMap pickedMap = GetMostVotedMap();
+        PrintMessageToAllPlayers(Core.Localizer["map.mapChosen", pickedMap.Map.DisplayName, pickedMap.Votes]);
+        LoadSelectedMap(pickedMap.Map);
+    }
+
+    /// <summary>
+    /// Return the map with the most votes. If there is an error, a random map is selected.
+    /// </summary>
+    private VotedMap GetMostVotedMap()
+    {
+        var mostVotedMap = votedMaps.OrderByDescending(m => m.Votes).FirstOrDefault();
+
+        if (mostVotedMap == null)
+        {
+            logger.LogWarning("GetMostVotedMap: mostVotedMap is null, picking random map");
+            return new()
+            {
+                Map = GetRandomMap(),
+                Votes = 0,
+                VotedBy = []
+            };
+        }
+
+        return mostVotedMap;
+    }
+}

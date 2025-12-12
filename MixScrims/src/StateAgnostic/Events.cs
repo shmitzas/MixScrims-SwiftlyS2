@@ -1,0 +1,513 @@
+using Microsoft.Extensions.Logging;
+using SwiftlyS2.Shared.Commands;
+using SwiftlyS2.Shared.Events;
+using SwiftlyS2.Shared.GameEventDefinitions;
+using SwiftlyS2.Shared.GameEvents;
+using SwiftlyS2.Shared.Misc;
+using SwiftlyS2.Shared.Players;
+
+namespace MixScrims;
+
+partial class MixScrims
+{
+    private void RegisterStateAgnosticListeners()
+    {
+        Core.Event.OnClientPutInServer += HandleClientPutInServer;
+        Core.Event.OnClientDisconnected += OnPlayerDisconnect;
+    }
+
+    /// <summary>
+    /// Handles the event when a client is put into the server.
+    /// </summary>
+    private void HandleClientPutInServer(IOnClientPutInServerEvent clientKind)
+    {
+        var playerSlot = clientKind.PlayerId;
+        logger.LogInformation($"HandleClientPutInServer: Slot {playerSlot}");
+
+        if (!freshlyJoinedPlayers.Any(p => p == playerSlot))
+        {
+            freshlyJoinedPlayers.Add(playerSlot);
+        }
+        logger.LogInformation($"HandleClientPutInServer: Added player slot {playerSlot} to freshlyJoinedPlayers.");
+
+        try
+        {
+            var player = Core.PlayerManager.GetPlayer(playerSlot);
+            logger.LogInformation($"HandleClientPutInServer: Retrieved player {player?.Controller.PlayerName} from slot {playerSlot}.");
+            if (player != null)
+            {
+                logger.LogInformation($"HandleClientPutInServer: Moving player {player.Controller.PlayerName} to Spectator team.");
+                Core.Scheduler.DelayBySeconds(2, () => HandlePlayerChangeTeam(player, 0));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, $"HandleClientPutInServer: Error moving player slot {playerSlot} to Spectator team.");
+        }
+    }
+
+    [ClientCommandHookHandler]
+    public HookResult OnClientCommand(int playerId, string commandLine)
+    {
+        var player = Core.PlayerManager.GetPlayer(playerId);
+        if (commandLine.StartsWith("jointeam"))
+        {
+            if (player == null)
+            {
+                logger.LogError("HandleJointeamListener: player is null");
+                return HookResult.Handled;
+            }
+
+            int teamTojoin = 9;
+
+            int.TryParse(commandLine.Split(' ')[0], out teamTojoin);
+
+            if (teamTojoin == 9)
+            {
+                logger.LogWarning($"HandleJointeamListener: {player.Controller.PlayerName} tried to join, but selected team was not found");
+                return HookResult.Handled;
+            }
+
+            return HandlePlayerChangeTeam(player, teamTojoin);
+        }
+        return HookResult.Continue;
+    }
+
+    /// <summary>
+    /// Assigns a newly joined player to a team based on current team balance and respawns the player.
+    /// </summary>
+    private void HandlePlayerChangeTeamOnJoin(IPlayer player)
+    {
+        int playerSlot = player.Slot;
+        if (!freshlyJoinedPlayers.Any(p => p == playerSlot))
+        {
+            logger.LogInformation($"HandlePlayerChangeTeamOnJoin: Player {player.Controller.PlayerName} is not in freshlyJoinedPlayers, ignoring.");
+            return;
+        }
+
+        freshlyJoinedPlayers.Remove(playerSlot);
+
+        logger.LogInformation($"HandlePlayerChangeTeamOnJoin: Player {player.Controller.PlayerName} has joined the server.");
+        if (player.IsValid && !IsBot(player))
+        {
+            logger.LogInformation($"HandlePlayerChangeTeamOnJoin: Player {player.Controller.PlayerName} is valid.");
+
+            var ctPlayers = GetPlayersInTeam(Team.CT);
+            var tPlayers = GetPlayersInTeam(Team.T);
+
+            if (ctPlayers.Count > tPlayers.Count)
+            {
+                logger.LogInformation($"HandlePlayerChangeTeamOnJoin: joining Terrorists");
+                previousAutoJoinedTeam = Team.T;
+                Core.Scheduler.DelayBySeconds(2, async () =>
+                {
+                    await player.SwitchTeamAsync(Team.T);
+                    // Wait a tick for game state to update
+                    Core.Scheduler.NextTick(() => RespawnPlayer(player));
+                });
+                return;
+            }
+
+            if (ctPlayers.Count < tPlayers.Count)
+            {
+                logger.LogInformation($"HandlePlayerChangeTeamOnJoin: joining CounterTerrorists");
+                previousAutoJoinedTeam = Team.CT;
+                Core.Scheduler.DelayBySeconds(2, async () =>
+                {
+                    await player.SwitchTeamAsync(Team.CT);
+                    // Wait a tick for game state to update
+                    Core.Scheduler.NextTick(() => RespawnPlayer(player));
+                });
+                return;
+            }
+
+            if (ctPlayers.Count == tPlayers.Count)
+            {
+                if (previousAutoJoinedTeam == Team.T)
+                {
+                    logger.LogInformation($"HandlePlayerChangeTeamOnJoin: both teams equal, joining CounterTerrorists");
+                    previousAutoJoinedTeam = Team.CT;
+                    Core.Scheduler.DelayBySeconds(2, async () =>
+                    {
+                        await player.SwitchTeamAsync(Team.CT);
+                        // Wait a tick for game state to update
+                        Core.Scheduler.NextTick(() => RespawnPlayer(player));
+                    });
+                }
+                else
+                {
+                    logger.LogInformation($"HandlePlayerChangeTeamOnJoin: both teams equal, joining Terrorists");
+                    previousAutoJoinedTeam = Team.T;
+                    Core.Scheduler.DelayBySeconds(2, async () =>
+                    {
+                        await player.SwitchTeamAsync(Team.T);
+                        // Wait a tick for game state to update
+                        Core.Scheduler.NextTick(() => RespawnPlayer(player));
+                    });
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Handles the player disconnect event, allowing custom logic to be executed when a player leaves the game.
+    /// </summary>
+    [GameEventHandler(HookMode.Pre)]
+    public HookResult HandlePlayerDisconnect(EventPlayerDisconnect @event)
+    {
+        var player = @event.UserIdPlayer;
+        logger.LogInformation("HandlePlayerDisconnect");
+        HandleDisconnectedPlayer(player);
+        return HookResult.Continue;
+    }
+
+    /// <summary>
+    /// Handles the disconnection of a player from the server when a client disconnect event is received.
+    /// </summary>
+    public void OnPlayerDisconnect(IOnClientDisconnectedEvent @event)
+    {
+
+        int slot = @event.PlayerId;
+        logger.LogInformation($"OnPlayerDisconnect: slot {slot}");
+        HandleDisconnectedPlayer(Core.PlayerManager.GetPlayer(slot));
+    }
+
+    /// <summary>
+    /// Handles the removal and cleanup of a player who has disconnected from the match.
+    /// </summary>
+    private void HandleDisconnectedPlayer(IPlayer? player)
+    {
+        if (player == null)
+        {
+            logger.LogError("HandleDisconnectedPlayer: player is null, ignoring");
+            return;
+        }
+
+        if (pickedCtPlayers.Any(p => p.PlayerID == player.PlayerID))
+        {
+            pickedCtPlayers.RemoveAll(p => p.PlayerID == player.PlayerID);
+            logger.LogInformation($"HandleDisconnectedPlayer: Removed {player.Controller.PlayerName} from pickedCtPlayers.");
+        }
+
+        if (pickedTPlayers.Any(p => p.PlayerID == player.PlayerID))
+        {
+            pickedTPlayers.RemoveAll(p => p.PlayerID == player.PlayerID);
+            logger.LogInformation($"HandleDisconnectedPlayer: Removed {player.Controller.PlayerName} from pickedTPlayers.");
+        }
+
+        if (playingCtPlayers.Any(p => p.PlayerID == player.PlayerID))
+        {
+            playingCtPlayers.RemoveAll(p => p.PlayerID == player.PlayerID);
+            logger.LogInformation($"HandleDisconnectedPlayer: Removed {player.Controller.PlayerName} from playingCtPlayers.");
+        }
+
+        if (playingTPlayers.Any(p => p.PlayerID == player.PlayerID))
+        {
+            playingTPlayers.RemoveAll(p => p.PlayerID == player.PlayerID);
+            logger.LogInformation($"HandleDisconnectedPlayer: Removed {player.Controller.PlayerName} from playingTPlayers.");
+        }
+
+        if (matchState == MatchState.PickingTeam)
+        {
+            if (player.PlayerID == captainCt?.PlayerID)
+            {
+                captainCt = null;
+                StartTeamPickingPhase();
+            }
+            if (player.PlayerID == captainT?.PlayerID)
+            {
+                captainT = null;
+                StartTeamPickingPhase();
+            }
+        }
+
+        if (matchState == MatchState.KnifeRound || matchState == MatchState.MapChosen)
+        {
+            logger.LogInformation($"HandleDisconnectedPlayer: MatchState is {matchState}");
+            if (player.PlayerID == captainCt?.PlayerID)
+            {
+                logger.LogInformation($"HandleDisconnectedPlayer: Disconnected player is CT captain");
+                captainCt = null;
+                var newCaptain = playingCtPlayers.Where(p => p.PlayerID != player.PlayerID).FirstOrDefault();
+                logger.LogInformation($"HandleDisconnectedPlayer: New CT captain is {newCaptain?.Controller.PlayerName}");
+                PickCtCaptain(newCaptain);
+            }
+            if (player.PlayerID == captainT?.PlayerID)
+            {
+                logger.LogInformation($"HandleDisconnectedPlayer: Disconnected player is T captain");
+                captainT = null;
+                var newCaptain = playingTPlayers.Where(p => p.PlayerID != player.PlayerID).FirstOrDefault();
+                logger.LogInformation($"HandleDisconnectedPlayer: New T captain is {newCaptain?.Controller.PlayerName}");
+                PickTCaptain(newCaptain);
+            }
+        }
+
+        if (matchState == MatchState.PickingStartingSide)
+        {
+            if (player.PlayerID == winnerCaptain?.PlayerID)
+            {
+                logger.LogInformation($"HandleDisconnectedPlayer: Disconnected player is winner captain");
+                StayStartingSides(winnerCaptain);
+            }
+        }
+
+        if (readyPlayers.Any(p => p.PlayerID == player.PlayerID))
+        {
+            logger.LogInformation($"HandleDisconnectedPlayer: Removing {player.Controller.PlayerName} from readyPlayers.");
+            RemovePlayerFromReadyList(player, true);
+        }
+
+        try
+        {
+            if (IsPlayerValid(player))
+            {
+                var currentMenu = Core.MenusAPI.GetCurrentMenu(player);
+                if (currentMenu != null)
+                {
+                    Core.MenusAPI.CloseMenuForPlayer(player, currentMenu);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, $"HandleDisconnectedPlayer: Error closing active menu for captain \"{player?.Controller.PlayerName}\"");
+        }
+        CheckReadyPlayersToStart();
+    }
+
+    /// <summary>
+    /// Handles the <see cref="EventPlayerTeam"/> game event by processing a player's team change request.
+    /// </summary>
+
+    [GameEventHandler(HookMode.Pre)]
+    public HookResult HandleEventPlayerTeam(EventPlayerTeam @event)
+    {
+        var player = @event.UserIdPlayer;
+
+        if (player == null)
+        {
+            logger.LogError("HandleEventPlayerTeam: player is null");
+            return HookResult.Handled;
+        }
+
+        if (player.PlayerPawn == null)
+        {
+            logger.LogError("HandleEventPlayerTeam: player's PlayerPawn is null");
+            return HookResult.Handled;
+        }
+
+        // Use the NEW team from event, not current team
+        int teamTojoin = @event.Team;
+
+        return HandlePlayerChangeTeam(player, teamTojoin);
+    }
+
+    /// <summary>
+    /// Handles a player's request to change teams during a match, enforcing team selection rules based on the current
+    /// match state.
+    /// </summary>
+    public HookResult HandlePlayerChangeTeam(IPlayer? player, int teamTojoin)
+    {
+        if (player == null)
+        {
+            logger.LogError("HandlePlayerChangeTeam: player is null");
+            return HookResult.Handled;
+        }
+
+        if (player.PlayerPawn == null)
+        {
+            logger.LogError("HandlePlayerChangeTeam: player PlayerPawn is null");
+            return HookResult.Handled;
+        }
+
+        // Skip validation during programmatic team moves (switch/stay sides, etc.)
+        if (isMovingPlayersToTeams)
+        {
+            logger.LogInformation($"HandlePlayerChangeTeam: Skipping validation during team move for {player.Controller.PlayerName}");
+            return HookResult.Continue;
+        }
+
+        if (matchState == MatchState.Warmup ||
+            matchState == MatchState.MapVoting ||
+            matchState == MatchState.MapChosen)
+        {
+            // Only call HandlePlayerChangeTeamOnJoin once - it removes the player from freshlyJoinedPlayers
+            // Subsequent team changes triggered by SwitchTeamAsync will skip this block
+            if (freshlyJoinedPlayers.Any(p => p == player.Slot))
+            {
+                HandlePlayerChangeTeamOnJoin(player);
+                logger.LogInformation($"HandlePlayerChangeTeam: Match state warmup. {player.Controller.PlayerName} joined team {teamTojoin}");
+            }
+            return HookResult.Continue;
+        }
+
+        if (matchState == MatchState.KnifeRound)
+        {
+            if (player.PlayerID == captainCt?.PlayerID || player.PlayerID == captainT?.PlayerID)
+            {
+                PrintMessageToPlayer(player, Core.Localizer["error.captainCannotChangeTeam"]);
+                return HookResult.Handled;
+            }
+        }
+
+        if (matchState == MatchState.PickingTeam)
+        {
+            if (teamTojoin == 3)
+            {
+                if (pickedCtPlayers.Any(p => p.PlayerID == player.PlayerID))
+                {
+                    logger.LogInformation($"HandlePlayerJoinTeam - PickingTeam: Player {player.Controller.PlayerName} re-joined CT team.");
+                    return HookResult.Continue;
+                }
+                else
+                {
+                    logger.LogInformation($"HandlePlayerJoinTeam - PickingTeam: Player {player.Controller.PlayerName} attempted to join CT team without being picked.");
+                    PrintMessageToPlayer(player, Core.Localizer["error.teamJoinDeniedCt"]);
+                    return HookResult.Handled;
+                }
+            }
+            if (teamTojoin == 2)
+            {
+                if (pickedTPlayers.Any(p => p.PlayerID == player.PlayerID))
+                {
+                    logger.LogInformation($"HandlePlayerJoinTeam - PickingTeam: Player {player.Controller.PlayerName} re-joined T team.");
+                    return HookResult.Continue;
+                }
+                else
+                {
+                    logger.LogInformation($"HandlePlayerJoinTeam - PickingTeam: Player {player.Controller.PlayerName} attempted to join T team without being picked.");
+                    PrintMessageToPlayer(player, Core.Localizer["error.teamJoinDeniedT"]);
+                    return HookResult.Handled;
+                }
+            }
+        }
+
+        if (matchState == MatchState.KnifeRound ||
+            matchState == MatchState.Match ||
+            matchState == MatchState.PickingStartingSide ||
+            matchState == MatchState.Timeout)
+        {
+            if (teamTojoin == 3)
+            {
+                if (playingCtPlayers.Count < cfg.MinimumReadyPlayers / 2)
+                {
+                    logger.LogInformation($"HandlePlayerJoinTeam - Match: Player {player.Controller.PlayerName} joined CT team.");
+                    playingCtPlayers.Add(player);
+                    if ((Team)player.PlayerPawn.TeamNum != Team.CT)
+                    {
+                        player.ChangeTeam(Team.CT);
+                    }
+                    return HookResult.Continue;
+                }
+
+                if (playingCtPlayers.Any(p => p.PlayerID == player.PlayerID))
+                {
+                    logger.LogInformation($"HandlePlayerJoinTeam - Match: Player {player.Controller.PlayerName} re-joined CT team.");
+                    return HookResult.Continue;
+                }
+                else
+                {
+                    logger.LogInformation($"HandlePlayerJoinTeam - Match: Player {player.Controller.PlayerName} attempted to join CT team but it is full.");
+                    PrintMessageToPlayer(player, Core.Localizer["error.teamFullCt"]);
+                    player.VoiceFlags = VoiceFlagValue.Muted;
+                    Core.Scheduler.DelayBySeconds(1f, () => PostTeamJoinCheckDuringMatch(player, Team.CT));
+                    return HookResult.Handled;
+                }
+            }
+
+            if (teamTojoin == 2)
+            {
+                if (playingTPlayers.Count < cfg.MinimumReadyPlayers / 2)
+                {
+                    logger.LogInformation($"HandlePlayerJoinTeam - Match: Player {player.Controller.PlayerName} joined T team.");
+                    playingTPlayers.Add(player);
+                    if ((Team)player.PlayerPawn.TeamNum != Team.T)
+                    {
+                        player.ChangeTeam(Team.T);
+                    }
+                    return HookResult.Continue;
+                }
+
+                if (playingTPlayers.Any(p => p.PlayerID == player.PlayerID))
+                {
+                    logger.LogInformation($"HandlePlayerJoinTeam - Match: Player {player.Controller.PlayerName} re-joined T team.");
+                    return HookResult.Continue;
+                }
+                else
+                {
+                    logger.LogInformation($"HandlePlayerJoinTeam - Match: Player {player.Controller.PlayerName} attempted to join T team but it is full.");
+                    PrintMessageToPlayer(player, Core.Localizer["error.teamFullT"]);
+                    player.VoiceFlags = VoiceFlagValue.Muted;
+                    Core.Scheduler.DelayBySeconds(1f, () => PostTeamJoinCheckDuringMatch(player, Team.T));
+                    return HookResult.Handled;
+                }
+            }
+
+            if (teamTojoin == 0 || teamTojoin == 1)
+            {
+                logger.LogInformation($"HandlePlayerJoinTeam - Match: Player {player.Controller.PlayerName} joined Spectators.");
+                playingCtPlayers.RemoveAll(p => p.PlayerID == player.PlayerID);
+                playingTPlayers.RemoveAll(p => p.PlayerID == player.PlayerID);
+                if ((Team)player.PlayerPawn.TeamNum != Team.Spectator)
+                {
+                    player.ChangeTeam(Team.Spectator);
+                }
+                return HookResult.Continue;
+            }
+        }
+
+        return HookResult.Handled;
+    }
+
+    /// <summary>
+    /// Performs post-join validation for a player joining a team during an active match and enforces team eligibility
+    /// rules.
+    /// </summary>
+    private void PostTeamJoinCheckDuringMatch(IPlayer? player, Team team)
+    {
+        logger.LogInformation("PostTeamJoinCheckDuringMatch");
+        if (player == null)
+        {
+            logger.LogError("PostTeamJoinCheckDuringMatch: player is null, ignoring");
+            return;
+        }
+
+        if (!IsPlayerValid(player))
+        {
+            logger.LogInformation("PostTeamJoinCheckDuringMatch: Player is invalid, ignoring");
+            return;
+        }
+
+        player.VoiceFlags = VoiceFlagValue.Normal;
+
+        var palyersInTeam = GetPlayersInTeam(team);
+
+        if (matchState == MatchState.KnifeRound ||
+            matchState == MatchState.Match ||
+            matchState == MatchState.PickingStartingSide ||
+            matchState == MatchState.Timeout)
+        {
+            logger.LogInformation($"Players in team: {palyersInTeam.Count}");
+            if (palyersInTeam.Count > cfg.MinimumReadyPlayers / 2)
+            {
+                logger.LogInformation($"PostTeamJoinCheckDuringMatch: Player {player.Controller.PlayerName} tried to bypass team check outside of match, moving to Spectators");
+                PrintMessageToPlayer(player, Core.Localizer["error.triedToBypassTeamCheck"]);
+                player.ChangeTeam(Team.Spectator);
+            }
+        }
+    }
+
+
+    /// <summary>
+    /// Handles the end of the round freeze period by updating the respawn state for players.
+    /// </summary>
+    [GameEventHandler(HookMode.Pre)]
+    public HookResult HandleFreezetimeEnd(EventRoundFreezeEnd @event)
+    {
+        if (matchState == MatchState.Match || matchState == MatchState.KnifeRound)
+        {
+            canPlayerBeRespawned = false;
+        }
+        return HookResult.Continue;
+    }
+}

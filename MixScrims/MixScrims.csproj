@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <AssemblyName>MixScrims</AssemblyName>
+    <OutputPath>$(MSBuildThisFileDirectory)build/</OutputPath>
+    <PublishDir>$(OutputPath)publish/MixScrims</PublishDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="SwiftlyS2.CS2" Version="1.0.5" ExcludeAssets="runtime" PrivateAssets="all">
+      <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="resources/gamedata/**/*;resources/templates/**/*;resources/translations/**/*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+    <Target Name="CopyConfigFiles" AfterTargets="Build">
+	    <!-- Create configs directory and copy cfg files -->
+	    <MakeDir Directories="$(OutDir)cfg" />
+	    <MakeDir Directories="$(OutDir)cfg\mixscrims" />
+	    <Copy SourceFiles="$(ProjectDir)csgo_configs\warmup.cfg" DestinationFolder="$(OutDir)cfg\mixscrims" />
+	    <Copy SourceFiles="$(ProjectDir)csgo_configs\teampick.cfg" DestinationFolder="$(OutDir)cfg\mixscrims" />
+	    <Copy SourceFiles="$(ProjectDir)csgo_configs\knife_round.cfg" DestinationFolder="$(OutDir)cfg\mixscrims" />
+	    <Copy SourceFiles="$(ProjectDir)csgo_configs\match_start.cfg" DestinationFolder="$(OutDir)cfg\mixscrims" />
+	    <Copy SourceFiles="$(ProjectDir)csgo_configs\staging_overrides.cfg" DestinationFolder="$(OutDir)cfg\mixscrims" />
+	    <Copy SourceFiles="$(ProjectDir)csgo_configs\production_overrides.cfg" DestinationFolder="$(OutDir)cfg\mixscrims" />
+    </Target>
+
+  <Target Name="CreateZip" AfterTargets="Publish">
+    <ItemGroup>
+      <PublishFiles Include="$(PublishDir)**\*.*" />
+    </ItemGroup>
+    
+    <ZipDirectory SourceDirectory="$(PublishDir)../" DestinationFile="$(OutputPath)../$(AssemblyName).zip" Overwrite="true" />
+  </Target>
+
+</Project> 
