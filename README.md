@@ -7,11 +7,9 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status">
-  <img src="https://img.shields.io/github/downloads/Shmitzas/MixScrims/total" alt="Downloads">
-  <img src="https://img.shields.io/github/stars/Shmitzas/MixScrims?style=flat&logo=github" alt="Stars">
-  <img src="https://img.shields.io/github/license/Shmitzas/MixScrims" alt="License">
-  <img src="https://img.shields.io/badge/.NET-10-purple" alt=".NET 10">
-  <img src="https://img.shields.io/badge/C%23-13.0-blue" alt="C# 13.0">
+  <img src="https://img.shields.io/github/downloads/Shmitzas/MixScrims-SwiftlyS2/total" alt="Downloads">
+  <img src="https://img.shields.io/github/stars/Shmitzas/MixScrims-SwiftlyS2?style=flat&logo=github" alt="Stars">
+  <img src="https://img.shields.io/github/license/Shmitzas/MixScrims-SwiftlyS2" alt="License">
 </p>
 
 ---
