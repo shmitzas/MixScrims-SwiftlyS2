@@ -17,7 +17,8 @@ public partial class MixScrims
         {
             Core.Scheduler.DelayBySeconds(10, () =>
             {
-                logger.LogInformation("Match ended, transitioning to Fresh match state.");
+                if (cfg.DetailedLogging)
+                    logger.LogInformation("Match ended, transitioning to Fresh match state.");
                 ResetPluginState();
             });
         }
@@ -32,7 +33,8 @@ public partial class MixScrims
     {
         if (matchState == MatchState.Match)
         {
-            logger.LogInformation("Match halftime announced - disabling team validation");
+            if (cfg.DetailedLogging)
+                logger.LogInformation("Match halftime announced - disabling team validation");
             
             // Disable validation IMMEDIATELY before any swaps occur
             isMovingPlayersToTeams = true;
@@ -49,7 +51,8 @@ public partial class MixScrims
     {
         if (matchState == MatchState.Match && isMovingPlayersToTeams)
         {
-            logger.LogInformation("Round started after halftime - updating team lists");
+            if (cfg.DetailedLogging)
+                logger.LogInformation("Round started after halftime - updating team lists");
             
             // Wait for the game engine to complete the swap
             Core.Scheduler.DelayBySeconds(1f, () =>
@@ -60,13 +63,15 @@ public partial class MixScrims
                 playingCtPlayers = oldPlayingTPlayers;
                 playingTPlayers = oldPlayingCtPlayers;
 
-                logger.LogInformation($"Halftime team lists updated - CT: {playingCtPlayers.Count}, T: {playingTPlayers.Count}");
+                if (cfg.DetailedLogging)
+                    logger.LogInformation($"Halftime team lists updated - CT: {playingCtPlayers.Count}, T: {playingTPlayers.Count}");
 
                 // Re-enable validation after players have settled
                 Core.Scheduler.DelayBySeconds(1f, () =>
                 {
                     isMovingPlayersToTeams = false;
-                    logger.LogInformation("Halftime complete - team validation re-enabled");
+                    if (cfg.DetailedLogging)
+                        logger.LogInformation("Halftime complete - team validation re-enabled");
                 });
             });
         }

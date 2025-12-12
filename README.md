@@ -273,6 +273,9 @@ Configuration is stored in `config.jsonc` (generated on first load).
     
     // Enable test mode (uses staging configs)
     "TestMode": false,
+
+    // Enable verbose (detailed) logging
+    "DetailedLogging": true,
     
     // Announcement timer intervals (seconds)
     "ChatAnnouncementTimers": {
@@ -312,63 +315,63 @@ Configuration is stored in `config.jsonc` (generated on first load).
         "MapName": "de_mirage",
         "DisplayName": "Mirage",
         "WorkshopId": "",
-        "CanBeNominated": true,
+        "CanBeVoted": true,
         "IsWorkshopMap": false
       },
       {
         "MapName": "de_dust2",
         "DisplayName": "Dust2",
         "WorkshopId": "",
-        "CanBeNominated": true,
+        "CanBeVoted": true,
         "IsWorkshopMap": false
       },
       {
         "MapName": "de_inferno",
         "DisplayName": "Inferno",
         "WorkshopId": "",
-        "CanBeNominated": true,
+        "CanBeVoted": true,
         "IsWorkshopMap": false
       },
       {
         "MapName": "de_anubis",
         "DisplayName": "Anubis",
         "WorkshopId": "",
-        "CanBeNominated": true,
+        "CanBeVoted": true,
         "IsWorkshopMap": false
       },
       {
         "MapName": "de_overpass",
         "DisplayName": "Overpass",
         "WorkshopId": "",
-        "CanBeNominated": true,
+        "CanBeVoted": true,
         "IsWorkshopMap": false
       },
       {
         "MapName": "de_ancient",
         "DisplayName": "Ancient",
         "WorkshopId": "",
-        "CanBeNominated": true,
+        "CanBeVoted": true,
         "IsWorkshopMap": false
       },
       {
         "MapName": "de_ancient_night",
         "DisplayName": "Ancient Night",
         "WorkshopId": "",
-        "CanBeNominated": true,
+        "CanBeVoted": true,
         "IsWorkshopMap": false
       },
       {
         "MapName": "de_nuke",
         "DisplayName": "Nuke",
         "WorkshopId": "",
-        "CanBeNominated": true,
+        "CanBeVoted": true,
         "IsWorkshopMap": false
       },
       {
         "MapName": "de_vertigo",
         "DisplayName": "Vertigo",
         "WorkshopId": "",
-        "CanBeNominated": true,
+        "CanBeVoted": true,
         "IsWorkshopMap": false
       }
     ]
@@ -385,7 +388,7 @@ Each map entry supports:
 | `MapName` | string | Technical map name (e.g., "de_dust2") |
 | `DisplayName` | string | Friendly display name (e.g., "Dust2") |
 | `WorkshopId` | string | Workshop ID if workshop map |
-| `CanBeNominated` | bool | Can be voted for in map voting |
+| `CanBeVoted` | bool | Can be voted for in map voting |
 | `IsWorkshopMap` | bool | Whether it's a workshop map |
 
 ### Discord Webhook Variables

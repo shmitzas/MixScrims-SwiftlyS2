@@ -137,7 +137,8 @@ public sealed partial class MixScrims
     /// </summary>
     private void LoadSelectedMap(MapDetails map)
     {
-        logger.LogInformation("LoadSelectedMap: Loading map {Map}", map.MapName);
+		if (cfg.DetailedLogging)
+			logger.LogInformation("LoadSelectedMap: Loading map {Map}", map.MapName);
 
         if (matchState == MatchState.MapLoading)
         {
@@ -159,7 +160,8 @@ public sealed partial class MixScrims
     /// </summary>
     private void LoadMap(MapDetails map)
     {
-        logger.LogInformation("LoadMap: Executing map change to {Map}", map.MapName);
+		if (cfg.DetailedLogging)
+			logger.LogInformation("LoadMap: Executing map change to {Map}", map.MapName);
         if (map.IsWorkshopMap && !string.IsNullOrWhiteSpace(map.WorkshopId))
         {
             Core.Engine.ExecuteCommand($"ds_workshop_changelevel {map.MapName}");
@@ -176,7 +178,8 @@ public sealed partial class MixScrims
     /// </summary>
     private void ScheduleMapLoadingAnnouncement(MapDetails map)
     {
-        logger.LogInformation("ScheduleMapLoadingAnnouncement: Scheduling map loading announcement in 15 seconds");
+		if (cfg.DetailedLogging)
+			logger.LogInformation("ScheduleMapLoadingAnnouncement: Scheduling map loading announcement in 15 seconds");
 
         var token = Core.Scheduler.DelayBySeconds(15, () =>
         {
@@ -195,11 +198,11 @@ public sealed partial class MixScrims
     /// </summary>
     private MapDetails GetRandomMap()
     {
-        var maps = cfg.Maps.Where(m => m.CanBeNominated).ToList();
+        var maps = cfg.Maps.Where(m => m.CanBeVoted).ToList();
         if (maps.Count == 0)
         {
             logger.LogError("GetRandomMap: No maps available for voting. Check configuration.");
-            return new MapDetails { MapName = "de_mirage", DisplayName = "Mirage", CanBeNominated = true };
+            return new MapDetails { MapName = "de_mirage", DisplayName = "Mirage", CanBeVoted = true };
         }
         var random = new Random();
         int index = random.Next(maps.Count);

@@ -15,7 +15,8 @@ public partial class MixScrims
     /// </summary>
     private void StartMapVotingPhase()
     {
-        logger.LogInformation("StartMapVotingPhase");
+        if (cfg.DetailedLogging)
+            logger.LogInformation("StartMapVotingPhase");
         matchState = MatchState.MapVoting;
         votedMaps.Clear();
         PrintMessageToAllPlayers(Core.Localizer["stateChanged.mapVotingStarted"]);
@@ -42,11 +43,13 @@ public partial class MixScrims
             .SetPlayerFrozen(false)
             .SetAutoCloseDelay(0);
 
-        logger.LogInformation("StartMapVotingPhase: {Count} maps available", mapsToVote.Count);
+        if (cfg.DetailedLogging)
+            logger.LogInformation("StartMapVotingPhase: {Count} maps available", mapsToVote.Count);
 
         foreach (var map in mapsToVote)
         {
-            logger.LogInformation("  - {Map}", map.DisplayName);
+            if (cfg.DetailedLogging)
+                logger.LogInformation("  - {Map}", map.DisplayName);
             var button = new ButtonMenuOption(map.DisplayName);
             button.Click += async (sender, args) =>
             {
@@ -80,7 +83,9 @@ public partial class MixScrims
     private void RegisterMapVoteByName(IPlayer player, string mapDisplayName)
     {
         var playerName = player.Controller?.PlayerName ?? $"#{player.PlayerID}";
-        logger.LogInformation("Player {Player} voted for map {Map}", playerName, mapDisplayName);
+
+        if (cfg.DetailedLogging)
+            logger.LogInformation("Player {Player} voted for map {Map}", playerName, mapDisplayName);
 
         var votedMap = cfg.Maps.FirstOrDefault(m => string.Equals(m.DisplayName, mapDisplayName, StringComparison.OrdinalIgnoreCase));
         if (votedMap == null)
@@ -95,7 +100,8 @@ public partial class MixScrims
         var previouslyVoted = votedMaps.FirstOrDefault(m => m.VotedBy.Any(v => v == player.PlayerID));
         if (previouslyVoted != null)
         {
-            logger.LogInformation("{Player} already voted for {Prev}. Removing vote...", playerName, previouslyVoted.Map.DisplayName);
+            if (cfg.DetailedLogging)
+                logger.LogInformation("{Player} already voted for {Prev}. Removing vote...", playerName, previouslyVoted.Map.DisplayName);
             previouslyVoted.Votes = Math.Max(0, previouslyVoted.Votes - 1);
             previouslyVoted.VotedBy.Remove(player.PlayerID);
         }

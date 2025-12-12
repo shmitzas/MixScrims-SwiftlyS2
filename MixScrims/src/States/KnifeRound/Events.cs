@@ -13,7 +13,8 @@ public partial class MixScrims
     {
         if (matchState == MatchState.KnifeRound)
         {
-            logger.LogInformation("HandleRoundEndOnKnifeRound: Knife round ended, transitioning to PickingStartingSide state.");
+            if (cfg.DetailedLogging)
+                logger.LogInformation("HandleRoundEndOnKnifeRound: Knife round ended, transitioning to PickingStartingSide state.");
             if (@event.Winner == 2)
             {
                 PromptWinnerCaptainToChoseStartingSide(Team.T);

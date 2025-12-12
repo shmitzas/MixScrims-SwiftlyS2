@@ -29,9 +29,12 @@ partial class MixScrims
             }
             else
             {
-                logger.LogInformation("Successfully sent message to Discord webhook.");
-                logger.LogInformation($"Message: {message}");
-                logger.LogInformation($"Webhook URL: {webhook}");
+                if (cfg.DetailedLogging)
+                {
+                    logger.LogInformation("Successfully sent message to Discord webhook.");
+                    logger.LogInformation($"Message: {message}");
+                    logger.LogInformation($"Webhook URL: {webhook}");
+                }
             }
         }
         catch (Exception ex)

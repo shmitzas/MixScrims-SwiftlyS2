@@ -11,13 +11,18 @@ public partial class MixScrims
     /// </summary>
     private void PrintReadyAndNotReadyPlayers()
     {
-        logger.LogInformation("PrintReadyAndNotReadyPlayers");
+        if (cfg.DetailedLogging)
+            logger.LogInformation("PrintReadyAndNotReadyPlayers");
+
         var notReadyPlayers = GetNotReadyPlayers();
-        logger.LogInformation($"Not ready players count: {notReadyPlayers.Count}");
+        if (cfg.DetailedLogging)
+            logger.LogInformation($"Not ready players count: {notReadyPlayers.Count}");
+
         if (notReadyPlayers.Count > 0)
         {
             string notReadyPlayersNames = string.Join(", ", notReadyPlayers.Select(p => p.Controller.PlayerName));
-            logger.LogInformation($"Not ready players: {notReadyPlayersNames}");
+            if (cfg.DetailedLogging)
+                logger.LogInformation($"Not ready players: {notReadyPlayersNames}");
             PrintMessageToAllPlayers(Core.Localizer["announcement.readyStatus", readyPlayers.Count, GetNumberOfPlayersRequiredToStart()]);
             PrintMessageToAllPlayers(Core.Localizer["announcement.notReadyPlayers", notReadyPlayersNames]);
         }
@@ -28,7 +33,8 @@ public partial class MixScrims
     /// </summary>
     private void PrintCommandReminders()
     {
-        logger.LogInformation("PrintCommandReminders");
+        if (cfg.DetailedLogging)
+            logger.LogInformation("PrintCommandReminders");
         var reminders = cfg.CommandRemindersLocalization;
         string? reminderToUse = reminders.FirstOrDefault(r => !usedReminders.Contains(r));
 
@@ -50,7 +56,8 @@ public partial class MixScrims
     /// </summary>
     private void PrintChosenCaptains()
     {
-        logger.LogInformation("PrintChosenCaptains");
+        if (cfg.DetailedLogging)
+            logger.LogInformation("PrintChosenCaptains");
         if (matchState != MatchState.MapChosen)
         {
             return;

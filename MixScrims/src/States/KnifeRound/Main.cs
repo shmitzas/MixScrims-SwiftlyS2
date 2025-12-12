@@ -180,7 +180,8 @@ public partial class MixScrims
             PrintMessageToAllPlayers(Core.Localizer["knifeRound.captainChoseSwitchT", captain.Controller.PlayerName]);
         }
 
-        logger.LogInformation("SwitchStartingSides: Switching sides...");
+        if (cfg.DetailedLogging)
+            logger.LogInformation("SwitchStartingSides: Switching sides...");
 
         var oldCtCaptain = captainCt;
         var oldTCaptain = captainT;
@@ -197,13 +198,12 @@ public partial class MixScrims
             SetTeamName(Team.CT, captainCt?.Controller.PlayerName);
             SetTeamName(Team.T, captainT?.Controller.PlayerName);
 
-            // Set flag to skip validation
             isMovingPlayersToTeams = true;
 
-            // Move old CT players (now in playingTPlayers) to T
             foreach (var player in playingTPlayers)
             {
-                logger.LogInformation($"SwitchStartingSides: Moving {player.Controller.PlayerName} to T");
+                if (cfg.DetailedLogging)
+                    logger.LogInformation($"SwitchStartingSides: Moving {player.Controller.PlayerName} to T");
                 if (IsBot(player))
                 {
                     Core.Scheduler.NextTick(() => player.SwitchTeam(Team.T));
@@ -211,10 +211,10 @@ public partial class MixScrims
                 player.ChangeTeam(Team.T);
             }
 
-            // Move old T players (now in playingCtPlayers) to CT
             foreach (var player in playingCtPlayers)
             {
-                logger.LogInformation($"SwitchStartingSides: Moving {player.Controller.PlayerName} to CT");
+                if (cfg.DetailedLogging)
+                    logger.LogInformation($"SwitchStartingSides: Moving {player.Controller.PlayerName} to CT");
                 if (IsBot(player))
                 {
                     Core.Scheduler.NextTick(() => player.SwitchTeam(Team.CT));
@@ -222,7 +222,6 @@ public partial class MixScrims
                 player.ChangeTeam(Team.CT);
             }
 
-            // Reset flag after teams are moved
             Core.Scheduler.NextTick(() => isMovingPlayersToTeams = false);
 
             StartMatch();
@@ -264,9 +263,9 @@ public partial class MixScrims
     /// </summary>
     private void MovePlayersToDesignatedTeamsPreMatch()
     {
-        logger.LogInformation("MovePlayersToDesignatedTeamsPreMatch");
+        if (cfg.DetailedLogging)
+            logger.LogInformation("MovePlayersToDesignatedTeamsPreMatch");
         
-        // Set flag to skip validation
         isMovingPlayersToTeams = true;
         
         var players = GetPlayingPlayers();
@@ -278,13 +277,15 @@ public partial class MixScrims
             {
                 continue;
             }
-            logger.LogInformation($"Moving {player.Controller.PlayerName} to SPEC");
+            if (cfg.DetailedLogging)
+                logger.LogInformation($"Moving {player.Controller.PlayerName} to SPEC");
             player.ChangeTeam(Team.Spectator);
         }
 
         foreach (var player in playingCtPlayers)
         {
-            logger.LogInformation($"Moving {player.Controller.PlayerName} to CT");
+            if (cfg.DetailedLogging)
+                logger.LogInformation($"Moving {player.Controller.PlayerName} to CT");
             if (IsBot(player))
             {
                 Core.Scheduler.NextTick(() => player.SwitchTeam(Team.CT));
@@ -295,7 +296,8 @@ public partial class MixScrims
 
         foreach (var player in playingTPlayers)
         {
-            logger.LogInformation($"Moving {player.Controller.PlayerName} to T");
+            if (cfg.DetailedLogging)
+                logger.LogInformation($"Moving {player.Controller.PlayerName} to T");
             if (IsBot(player))
             {
                 Core.Scheduler.NextTick(() => player.SwitchTeam(Team.T));
@@ -303,7 +305,6 @@ public partial class MixScrims
             player.ChangeTeam(Team.T);
         }
         
-        // Reset flag after teams are moved
         Core.Scheduler.NextTick(() => isMovingPlayersToTeams = false);
     }
 }

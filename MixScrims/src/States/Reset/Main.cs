@@ -16,9 +16,13 @@ public partial class MixScrims
         });
     }
 
+    /// <summary>
+    /// Resets all match-related variables and state to their initial values.
+    /// </summary>
     private void ResetVariables()
     {
-        logger.LogInformation("ResetPluginState");
+        if (cfg.DetailedLogging)
+            logger.LogInformation("ResetPluginState");
         matchState = MatchState.Warmup;
         readyPlayers.Clear();
         playingCtPlayers.Clear();

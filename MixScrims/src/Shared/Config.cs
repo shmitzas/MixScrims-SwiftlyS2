@@ -15,6 +15,7 @@ public class Config
     public int TimeoutDurationSeconds { get; set; } = 60;
     public int Timeouts { get; set; } = 3;
     public bool TestMode { get; set; } = false;
+    public bool DetailedLogging { get; set; } = true;
     public AnnouncementTimers ChatAnnouncementTimers { get; set; } = new();
     public List<string> CommandRemindersLocalization { get; set; } =
     [
@@ -44,15 +45,15 @@ public class Config
     };
     public List<MapDetails> Maps { get; set; } =
     [
-        new() { MapName = "de_mirage", DisplayName = "Mirage", WorkshopId = "", CanBeNominated = true, IsWorkshopMap = false },
-        new() { MapName = "de_dust2", DisplayName = "Dust2", WorkshopId = "", CanBeNominated = true, IsWorkshopMap = false },
-        new() { MapName = "de_inferno", DisplayName = "Inferno", WorkshopId = "", CanBeNominated = true, IsWorkshopMap = false },
-        new() { MapName = "de_anubis", DisplayName = "Anubis", WorkshopId = "", CanBeNominated = true, IsWorkshopMap = false },
-        new() { MapName = "de_overpass", DisplayName = "Overpass", WorkshopId = "", CanBeNominated = true, IsWorkshopMap = false },
-        new() { MapName = "de_ancient", DisplayName = "Ancient", WorkshopId = "", CanBeNominated = true, IsWorkshopMap = false },
-        new() { MapName = "de_ancient_night", DisplayName = "Ancient Night", WorkshopId = "", CanBeNominated = true, IsWorkshopMap = false },
-        new() { MapName = "de_nuke", DisplayName = "Nuke", WorkshopId = "", CanBeNominated = true, IsWorkshopMap = false },
-        new() { MapName = "de_vertigo", DisplayName = "Vertigo", WorkshopId = "", CanBeNominated = true, IsWorkshopMap = false }
+        new() { MapName = "de_mirage", DisplayName = "Mirage", WorkshopId = "", CanBeVoted = true, IsWorkshopMap = false },
+        new() { MapName = "de_dust2", DisplayName = "Dust2", WorkshopId = "", CanBeVoted = true, IsWorkshopMap = false },
+        new() { MapName = "de_inferno", DisplayName = "Inferno", WorkshopId = "", CanBeVoted = true, IsWorkshopMap = false },
+        new() { MapName = "de_anubis", DisplayName = "Anubis", WorkshopId = "", CanBeVoted = true, IsWorkshopMap = false },
+        new() { MapName = "de_overpass", DisplayName = "Overpass", WorkshopId = "", CanBeVoted = true, IsWorkshopMap = false },
+        new() { MapName = "de_ancient", DisplayName = "Ancient", WorkshopId = "", CanBeVoted = true, IsWorkshopMap = false },
+        new() { MapName = "de_ancient_night", DisplayName = "Ancient Night", WorkshopId = "", CanBeVoted = true, IsWorkshopMap = false },
+        new() { MapName = "de_nuke", DisplayName = "Nuke", WorkshopId = "", CanBeVoted = true, IsWorkshopMap = false },
+        new() { MapName = "de_vertigo", DisplayName = "Vertigo", WorkshopId = "", CanBeVoted = true, IsWorkshopMap = false }
     ];
 }
 
@@ -61,7 +62,7 @@ public class MapDetails
     public string MapName { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
     public string WorkshopId { get; set; } = string.Empty;
-    public bool CanBeNominated { get; set; } = true;
+    public bool CanBeVoted { get; set; } = true;
     public bool IsWorkshopMap { get; set; } = false;
 }
 

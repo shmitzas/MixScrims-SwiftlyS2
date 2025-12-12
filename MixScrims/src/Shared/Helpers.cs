@@ -184,7 +184,7 @@ public sealed partial class MixScrims
     private List<MapDetails> GetMapsToVote()
     {
         return cfg.Maps
-            .Where(m => m.CanBeNominated && !playedMaps.Any(pm => pm.MapName == m.MapName))
+            .Where(m => m.CanBeVoted && !playedMaps.Any(pm => pm.MapName == m.MapName))
             .GroupBy(m => m.MapName)           // Group by MapName
             .Select(g => g.First())            // Take first from each group
             .ToList();

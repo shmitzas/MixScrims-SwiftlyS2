@@ -190,7 +190,9 @@ public partial class MixScrims
             {
                 playingCtPlayers.Add(captainCt);
             }
-            logger.LogInformation($"PickCtCaptain: picked {captainCt.Controller!.PlayerName}");
+
+            if (cfg.DetailedLogging)
+                logger.LogInformation($"PickCtCaptain: picked {captainCt.Controller!.PlayerName}");
             PrintMessageToAllPlayers(Core.Localizer["teamPicking.pickedCaptainCt", captainCt.Controller!.PlayerName]);
         }
         else
@@ -234,7 +236,9 @@ public partial class MixScrims
             {
                 playingTPlayers.Add(captainT);
             }
-            logger.LogInformation($"PickTCaptain: picked {captainT.Controller!.PlayerName}");
+
+            if (cfg.DetailedLogging)
+                logger.LogInformation($"PickTCaptain: picked {captainT.Controller!.PlayerName}");
             PrintMessageToAllPlayers(Core.Localizer["teamPicking.pickedCaptainT", captainT.Controller!.PlayerName]);
         }
         else
@@ -289,7 +293,8 @@ public partial class MixScrims
         }
         player.ChangeTeam(Team.CT);
 
-        logger.LogInformation($"AssignPickedPlayerToTeamCt: {captain.Controller!.PlayerName} picked {player.Controller!.PlayerName} for CT team.");
+        if (cfg.DetailedLogging)
+            logger.LogInformation($"AssignPickedPlayerToTeamCt: {captain.Controller!.PlayerName} picked {player.Controller!.PlayerName} for CT team.");
         PrintMessageToAllPlayers(Core.Localizer["teamPicking.pickedMemberCt", captain.Controller!.PlayerName, player.Controller!.PlayerName]);
 
         if (pickedCtPlayers.Count + pickedTPlayers.Count >= cfg.MinimumReadyPlayers)
@@ -332,7 +337,8 @@ public partial class MixScrims
             Core.MenusAPI.CloseMenuForPlayer(captain, currentMenu);
         }
 
-        logger.LogInformation($"AssignPickedPlayerToTeamT: {captain.Controller!.PlayerName} picked {player.Controller!.PlayerName} for T team.");
+        if (cfg.DetailedLogging)
+            logger.LogInformation($"AssignPickedPlayerToTeamT: {captain.Controller!.PlayerName} picked {player.Controller!.PlayerName} for T team.");
         PrintMessageToAllPlayers(Core.Localizer["teamPicking.pickedMemberT", captain.Controller!.PlayerName, player.Controller!.PlayerName]);
 
         if (pickedCtPlayers.Count + pickedTPlayers.Count >= cfg.MinimumReadyPlayers)
@@ -350,7 +356,8 @@ public partial class MixScrims
     /// </summary>
     private void MovePlayersToDesignatedTeamsPrePick()
     {
-        logger.LogInformation("MovePlayersToDesignatedTeamsPrePick");
+        if (cfg.DetailedLogging)
+            logger.LogInformation("MovePlayersToDesignatedTeamsPrePick");
         var players = GetPlayingPlayers();
         players.RemoveAll(p => pickedCtPlayers.Contains(p) || pickedTPlayers.Contains(p));
 
@@ -360,13 +367,16 @@ public partial class MixScrims
             {
                 continue;
             }
-            logger.LogInformation($"Moving {player.Controller!.PlayerName} to SPEC");
+
+            if (cfg.DetailedLogging)
+                logger.LogInformation($"Moving {player.Controller!.PlayerName} to SPEC");
             player.ChangeTeam(Team.Spectator);
         }
 
         foreach (var player in pickedCtPlayers)
         {
-            logger.LogInformation($"Moving {player.Controller!.PlayerName} to CT");
+            if (cfg.DetailedLogging)
+                logger.LogInformation($"Moving {player.Controller!.PlayerName} to CT");
             if (IsBot(player))
             {
                 player.SwitchTeam(Team.CT);
@@ -376,7 +386,8 @@ public partial class MixScrims
 
         foreach (var player in pickedTPlayers)
         {
-            logger.LogInformation($"Moving {player.Controller!.PlayerName} to T");
+            if (cfg.DetailedLogging)
+                logger.LogInformation($"Moving {player.Controller!.PlayerName} to T");
             if (IsBot(player))
             {
                 player.SwitchTeam(Team.T);

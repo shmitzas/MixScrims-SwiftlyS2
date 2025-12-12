@@ -27,7 +27,9 @@ public partial class MixScrims
             return;
         }
 
-        logger.LogInformation("Clearing ready players and executing warmup config");
+        if (cfg.DetailedLogging)
+            logger.LogInformation("Clearing ready players and executing warmup config");
+
         readyPlayers.Clear();
 
         matchState = MatchState.MapChosen;

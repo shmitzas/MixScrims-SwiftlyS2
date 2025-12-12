@@ -9,7 +9,8 @@ public partial class MixScrims
     /// </summary>
     private void StartWarmup()
     {
-        logger.LogInformation("Starting warmup");
+        if (cfg.DetailedLogging)
+            logger.LogInformation("Starting warmup");
         matchState = MatchState.Warmup;
 
         UnpauseMatch();
@@ -21,7 +22,8 @@ public partial class MixScrims
     /// state.
     private void LoadWarmupConfig()
     {
-        logger.LogInformation("Loading warmup configuration");
+        if (cfg.DetailedLogging)
+            logger.LogInformation("Loading warmup configuration");
 
         Core.Scheduler.NextTick(() =>
         {

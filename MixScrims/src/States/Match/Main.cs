@@ -48,7 +48,8 @@ public partial class MixScrims
                 int maxHistory = cfg.DisallowVotePreviousMaps - 1;
                 while (playedMaps.Count > maxHistory)
                 {
-                    logger.LogInformation($"StartMatch: Removing oldest map '{playedMaps[0].MapName}' from history.");
+                    if (cfg.DetailedLogging)
+                        logger.LogInformation($"StartMatch: Removing oldest map '{playedMaps[0].MapName}' from history.");
                     playedMaps.RemoveAt(0);
                 }
             }
