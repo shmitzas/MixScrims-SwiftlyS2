@@ -37,7 +37,7 @@ public partial class MixScrims
         var warmupToken = Core.Scheduler.DelayBySeconds(5, LoadWarmupConfig);
         Core.Scheduler.StopOnMapChange(warmupToken);
 
-        var captainAnnouncementToken = Core.Scheduler.DelayBySeconds(20, () =>
+        var captainAnnouncementToken = Core.Scheduler.DelayBySeconds(30, () =>
         {
             PickCaptains();
             captainsAnnouncementsTimer = Core.Scheduler.DelayBySeconds(cfg.ChatAnnouncementTimers.CaptainsAnnouncements, PrintChosenCaptains);

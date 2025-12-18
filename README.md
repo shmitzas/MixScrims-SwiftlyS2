@@ -33,6 +33,10 @@
 - [⚙️ Configuration](#️-configuration)
   - [Configuration Options](#configuration-options)
   - [Map Configuration](#map-configuration)
+  - [Player Leave Punishment Configuration](#player-leave-punishment-configuration)
+    - [Sensitivity Levels](#sensitivity-levels)
+    - [Grace Period](#grace-period)
+    - [Command Variables](#command-variables)
   - [Discord Webhook Variables](#discord-webhook-variables)
 - [📦 Installation](#-installation)
   - [Prerequisites](#prerequisites)
@@ -55,6 +59,7 @@
 - **Full In-Game Match Management** - No external tools needed
 - **Automated Match Flow** - Warmup → Map Voting → Captain Selection → Team Picking → Knife Round → Match
 - **Team Timeout System** - Configurable team timeouts with voting
+- **Player Leave Punishment** - Automatically punish players who leave during critical match phases
 - **Discord Integration** - Send player invites via webhook
 - **Map Voting System** - Democratic map selection with revote support
 - **Captain System** - Random or manual captain assignment
@@ -136,6 +141,7 @@ All player commands support aliases defined in the configuration.
 | `!revote` | `!rv` | Change your map vote | Map Voting |
 | `!timeout` | `!pause` | Call a team timeout (requires team vote) | Match |
 | `!invite` | `!inv` | Send Discord invite to get more players | Anytime |
+| `!volunteer_captain` | `!volcap`, `!selfcapt` | Volunteer to be captain (if enabled) | Warmup, Map Chosen |
 | `!stay` | `!st` | Keep current sides after knife round | Picking Starting Side |
 | `!switch` | `!swap` | Switch sides after knife round | Picking Starting Side |
 
@@ -168,6 +174,12 @@ All player commands support aliases defined in the configuration.
 - Has cooldown to prevent spam (5 minutes default)
 - Shows how many players needed
 - Only works if server is not full
+
+**`!volunteer_captain` / `!volcap` / `!selfcapt`**
+- Volunteer yourself as a team captain
+- Only works if `AllowVolunteerCaptains` is enabled in config
+- First volunteer becomes CT captain, second becomes T captain
+- Available during Map Chosen state before automatic captain selection
 
 **`!stay` / `!st`**
 - Winning knife round captain keeps current team sides
@@ -259,6 +271,12 @@ Configuration is stored in `config.jsonc` (generated on first load).
     // Minimum players required to start match
     "MinimumReadyPlayers": 10,
     
+    // Skip team picking phase and use teams as they are at the start of the knife round (useful if you predefine which player plays in which team before the team picking starts)
+    "SkipTeamPicking": false,
+    
+    // Move overflow players  to spectator. By default team limit is 5 players (calculated by MinimumReadyPlayers/2)
+    "MoveOverflowPlayersToSpec": true,
+    
     // Number of recent maps to exclude from voting
     "DisallowVotePreviousMaps": 2,
     
@@ -291,22 +309,38 @@ Configuration is stored in `config.jsonc` (generated on first load).
       "invite"
     ],
     
-    // Command aliases (key = main command, value = aliases)
-    "CommandAliases": {
-      "mix_reset": ["reset"],
-      "mix_start": ["start"],
-      "forceready": ["fr"],
-      "captain": ["cap", "capt"],
-      "map": ["changemap"],
-      "maps": ["maplist"],
-      "maplist_all": ["allmaps", "maps_all"],
-      "ready": ["r"],
-      "unready": ["u", "ur"],
-      "revote": ["rv"],
-      "timeout": ["pause"],
-      "invite": ["inv"],
-      "stay": ["st"],
-      "switch": ["swap"]
+    // Enable punishment for players who leave during match
+    "PunishPlayerLeaves": false,
+    
+    // Player leave punishment configuration
+    "PlayerLeavePunishment": {
+      "ServerCommand": "sw_ban {steamId} {reason} {duration}",
+      "BanDurationMinutes": 15,
+      "BanReason": "Leaving during a MixScrims match",
+      "Sensitivity": 2,
+      "WaitBeforePunishmentSeconds": 300
+    },
+    
+    // Allow players to volunteer as captains instead of random selection
+    "AllowVolunteerCaptains": false,
+    
+    // Command configuration (permission and aliases)
+    "Commands": {
+      "mix_reset": { "Permission": "managemix", "Aliases": ["reset"] },
+      "mix_start": { "Permission": "managemix", "Aliases": ["start"] },
+      "forceready": { "Permission": "managemix", "Aliases": ["fr"] },
+      "captain": { "Permission": "managemix", "Aliases": ["cap", "capt"] },
+      "map": { "Permission": "managemix", "Aliases": ["changemap"] },
+      "maps": { "Permission": "managemix", "Aliases": ["maplist"] },
+      "maplist_all": { "Permission": "managemix", "Aliases": ["allmaps", "maps_all"] },
+      "ready": { "Permission": "", "Aliases": ["r"] },
+      "unready": { "Permission": "", "Aliases": ["u", "ur"] },
+      "revote": { "Permission": "", "Aliases": ["rv"] },
+      "timeout": { "Permission": "", "Aliases": ["pause"] },
+      "invite": { "Permission": "", "Aliases": ["inv"] },
+      "stay": { "Permission": "", "Aliases": ["st"] },
+      "switch": { "Permission": "", "Aliases": ["swap"] },
+      "volunteer_captain": { "Permission": "", "Aliases": ["volcap", "selfcapt"] }
     },
     
     // Map pool configuration
@@ -390,6 +424,63 @@ Each map entry supports:
 | `WorkshopId` | string | Workshop ID if workshop map |
 | `CanBeVoted` | bool | Can be voted for in map voting |
 | `IsWorkshopMap` | bool | Whether it's a workshop map |
+
+### Player Leave Punishment Configuration
+
+The plugin can automatically punish players who leave during critical match phases to discourage abandonment.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `PunishPlayerLeaves` | bool | `false` | Enable/disable punishment system |
+| `ServerCommand` | string | `sw_ban {steamId} {reason} {duration}` | Command template to execute |
+| `BanDurationMinutes` | int | `15` | Duration of punishment in minutes |
+| `BanReason` | string | `Leaving during a MixScrims match` | Reason displayed to player |
+| `Sensitivity` | int | `2` | When punishment triggers (0-2) |
+| `WaitBeforePunishmentSeconds` | int | `300` | Grace period before punishment applies (5 minutes) |
+
+#### Sensitivity Levels
+
+- **0 (Lowest)** - Only punish during active match
+  - `Match` - Competitive match is in progress
+  - `Timeout` - Team timeout is active
+- **1 (Medium)** - Punish during knife round, side selection, and match
+  - `KnifeRound` - Knife round phase
+  - `PickingStartingSide` - Winner choosing sides
+  - `Match` - Competitive match is in progress
+  - `Timeout` - Team timeout is active
+- **2 (Highest)** - Punish during team picking, knife round, side selection, and match
+  - `PickingTeam` - Captains picking players
+  - `KnifeRound` - Knife round phase
+  - `PickingStartingSide` - Winner choosing sides
+  - `Match` - Competitive match is in progress
+  - `Timeout` - Team timeout is active
+
+#### Grace Period
+
+The `WaitBeforePunishmentSeconds` setting provides a grace period before punishment is applied. This allows players who accidentally disconnect or have brief connection issues to rejoin without being punished. Default is 300 seconds (5 minutes).
+
+- If a player disconnects and doesn't return within the grace period, they will be punished
+- The grace period only applies if punishment is enabled and sensitivity conditions are met
+- Useful to avoid punishing players with temporary connection issues
+
+#### Command Variables
+
+The `ServerCommand` supports these placeholders:
+- `{steamId}` - Player's SteamID64
+- `{reason}` - Configured ban reason
+- `{duration}` - Ban duration in minutes
+
+**Example commands:**
+```jsonc
+// Swiftly ban command
+"ServerCommand": "sw_ban {steamId} {reason} {duration}"
+
+// CSS ban command
+"ServerCommand": "css_ban {steamId} {duration} {reason}"
+
+// Custom command
+"ServerCommand": "custom_punish {steamId} {duration}"
+```
 
 ### Discord Webhook Variables
 

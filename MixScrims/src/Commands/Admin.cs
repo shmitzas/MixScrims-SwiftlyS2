@@ -13,7 +13,6 @@ public partial class MixScrims
 	///<summary>
 	///Forcefully resets mix state to the warmup state
 	///</summary>
-	[Command("mix_reset", permission: "managemix")]
 	public void OnResetPlugin(ICommandContext context)
 	{
 		var admin = context.Sender;
@@ -34,7 +33,6 @@ public partial class MixScrims
 	///<summary>
 	///Forcefully starts the match regardless of how many players are ready
 	///</summary>
-	[Command("mix_start", permission: "managemix")]
 	public void OnForceMatchStart(ICommandContext context)
 	{
 		var admin = context.Sender;
@@ -63,7 +61,6 @@ public partial class MixScrims
 	///<summary>
 	///Forcefully marks all players as ready and starts the next mix state
 	///</summary>
-	[Command("forceready", permission: "managemix")]
 	public void OnForceReady(ICommandContext context)
 	{
 		var admin = context.Sender;
@@ -102,7 +99,6 @@ public partial class MixScrims
 	///<summary>
 	///Prompts a list of players to choose a captain for chosen team
 	///</summary>
-	[Command("captain", permission: "managemix")]
 	public void OnCaptain(ICommandContext context)
 	{
 		var admin = context.Sender;
@@ -112,83 +108,84 @@ public partial class MixScrims
 			return;
 		}
 
-		if (matchState != MatchState.MapChosen)
+		if (matchState == MatchState.Warmup
+			|| matchState == MatchState.MapLoading
+			|| matchState == MatchState.MapChosen)
 		{
-			logger.LogError("OnCaptain: Invalid match state, must be MatchState.MapChosen");
+
+			if (context.Args.Length < 1)
+			{
+				PrintMessageToPlayer(admin, Core.Localizer["error.InvalidArgs", "!captain <t/ct>"]);
+				return;
+			}
+
+			var team = context.Args[0].ToLower();
+			if (team != "t" && team != "ct")
+			{
+				PrintMessageToPlayer(admin, Core.Localizer["error.InvalidArgs", "!captain <t/ct>"]);
+				return;
+			}
+
+			var players = GetPlayingPlayers();
+			players.RemoveAll(p => captainCt?.PlayerID == p.PlayerID || captainT?.PlayerID == p.PlayerID);
+
+			if (players.Count == 0)
+			{
+				logger.LogWarning("OnCaptain: No eligible players to pick as captain");
+				PrintMessageToPlayer(admin, "No eligible players available.");
+				return;
+			}
+
+			var builder = Core.MenusAPI
+				.CreateBuilder()
+				.Design.SetMenuTitle(Core.Localizer["menu.captainPickTitle", team.ToUpper()])
+				.Design.SetMenuTitleVisible(true)
+				.Design.SetMenuFooterVisible(true)
+				.EnableSound()
+				.SetPlayerFrozen(false)
+				.SetAutoCloseDelay(0);
+
+			foreach (var player in players)
+			{
+				var displayName = player.Controller?.PlayerName ?? $"#{player.PlayerID}";
+				var button = new ButtonMenuOption(displayName);
+
+				if (team == "t")
+				{
+					button.Click += async (sender, args) =>
+					{
+						SetTCaptain(admin, displayName);
+						await ValueTask.CompletedTask;
+					};
+				}
+				if (team == "ct")
+				{
+					button.Click += async (sender, args) =>
+					{
+						SetCtCaptain(admin, displayName);
+						await ValueTask.CompletedTask;
+					};
+				}
+
+				builder.AddOption(button);
+			}
+
+			var menu = builder.Build();
+			if (IsPlayerValid(admin))
+			{
+				Core.MenusAPI.OpenMenuForPlayer(admin, menu);
+			}
+		}
+        else
+        {
+			logger.LogError("OnCaptain: Invalid match state \"{matchState}\", must be MatchState.Warmup/MapChosen/MapLoading", matchState);
 			PrintMessageToPlayer(admin, Core.Localizer["command.invalidState", "captain"]);
-			return;
-		}
-
-
-        if (context.Args.Length < 1)
-		{
-			PrintMessageToPlayer(admin, Core.Localizer["error.InvalidArgs", "!captain <t/ct>"]);
-			return;
-		}
-
-		var team = context.Args[0].ToLower();
-		if (team != "t" && team != "ct")
-		{
-			PrintMessageToPlayer(admin, Core.Localizer["error.InvalidArgs", "!captain <t/ct>"]);
-			return;
-		}
-
-		var players = GetPlayingPlayers();
-		players.RemoveAll(p => captainCt?.PlayerID == p.PlayerID || captainT?.PlayerID == p.PlayerID);
-
-		if (players.Count == 0)
-		{
-			logger.LogWarning("OnCaptain: No eligible players to pick as captain");
-			PrintMessageToPlayer(admin, "No eligible players available.");
-			return;
-		}
-
-		// Build captain selection menu
-		var builder = Core.MenusAPI
-			.CreateBuilder()
-			.Design.SetMenuTitle(Core.Localizer["menu.captainPickTitle", team.ToUpper()])
-			.Design.SetMenuTitleVisible(true)
-			.Design.SetMenuFooterVisible(true)
-			.EnableSound()
-			.SetPlayerFrozen(false)
-            .SetAutoCloseDelay(0);
-
-        foreach (var player in players)
-		{
-			var displayName = player.Controller?.PlayerName ?? $"#{player.PlayerID}";
-			var button = new ButtonMenuOption(displayName);
-
-			if (team == "t")
-			{
-				button.Click += async (sender, args) =>
-				{
-					SetTCaptain(admin, displayName);
-					await ValueTask.CompletedTask;
-				};
-			}
-			else // team == "ct"
-			{
-				button.Click += async (sender, args) =>
-				{
-					SetCtCaptain(admin, displayName);
-					await ValueTask.CompletedTask;
-				};
-			}
-
-			builder.AddOption(button);
-		}
-
-		var menu = builder.Build();
-		if (IsPlayerValid(admin))
-		{
-			Core.MenusAPI.OpenMenuForPlayer(admin, menu);
-		}
-	}
+        }
+    }
 
 	///<summary>
 	///Changes the map to the specified map (if the map exists in the configuration)
 	///</summary>
-	[Command("map", permission: "managemix")]
 	public void OnGoToMap(ICommandContext context)
 	{
 		var admin = context.Sender;
@@ -241,7 +238,6 @@ public partial class MixScrims
 	///<summary>
 	///Lists all the maps that are available for voting
 	///</summary>
-	[Command("maps", permission: "managemix")]
 	public void OnListVoteableMaps(ICommandContext context)
 	{
 		var admin = context.Sender;
@@ -267,7 +263,6 @@ public partial class MixScrims
 	///<summary>
 	///Lists all the maps that are available for voting
 	///</summary>
-	[Command("maplist_all", permission: "managemix")]
 	public void OnListAllMaps(ICommandContext context)
 	{
 		var admin = context.Sender;
