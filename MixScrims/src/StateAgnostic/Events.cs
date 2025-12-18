@@ -55,27 +55,33 @@ partial class MixScrims
     public HookResult OnClientCommand(int playerId, string commandLine)
     {
         var player = Core.PlayerManager.GetPlayer(playerId);
-        if (commandLine.StartsWith("jointeam"))
+        if (!commandLine.StartsWith("jointeam"))
+             return HookResult.Continue;
+        
+        if (player == null)
         {
-            if (player == null)
-            {
-                logger.LogError("HandleJointeamListener: player is null");
-                return HookResult.Handled;
-            }
-
-            int teamTojoin = 9;
-
-            int.TryParse(commandLine.Split(' ')[0], out teamTojoin);
-
-            if (teamTojoin == 9)
-            {
-                logger.LogError($"HandleJointeamListener: {player.Controller.PlayerName} tried to join, but selected team was not found");
-                return HookResult.Handled;
-            }
-
-            return HandlePlayerChangeTeam(player, teamTojoin);
+            logger.LogError("HandleJointeamListener: player is null");
+            return HookResult.Stop;
         }
-        return HookResult.Continue;
+
+        int teamTojoin = 9;
+
+        var parts = commandLine.Split(' ');
+        if (parts.Length > 1)
+        {
+            int.TryParse(parts[1], out teamTojoin);
+        }
+
+        if (cfg.DetailedLogging)
+            logger.LogInformation($"OnClientCommand: {player.Controller.PlayerName} executing jointeam command with team {teamTojoin}");
+
+        if (teamTojoin == 9)
+        {
+            logger.LogError($"HandleJointeamListener: {player.Controller.PlayerName} tried to join, but selected team was not found in command: {commandLine}");
+            return HookResult.Stop;
+        }
+
+        return HandlePlayerChangeTeam(player, teamTojoin);
     }
 
     /// <summary>
@@ -240,7 +246,9 @@ partial class MixScrims
             }
         }
 
-        if (matchState == MatchState.KnifeRound || matchState == MatchState.MapChosen)
+        if (matchState == MatchState.KnifeRound
+            || matchState == MatchState.MapChosen
+            || matchState == MatchState.Timeout)
         {
             if (cfg.DetailedLogging)
                 logger.LogInformation($"HandleDisconnectedPlayer: MatchState is {matchState}");
@@ -271,7 +279,8 @@ partial class MixScrims
             }
         }
 
-        if (matchState == MatchState.PickingStartingSide)
+        if (matchState == MatchState.PickingStartingSide
+            || matchState == MatchState.Timeout)
         {
             if (player.PlayerID == winnerCaptain?.PlayerID)
             {
@@ -288,6 +297,8 @@ partial class MixScrims
             RemovePlayerFromReadyList(player, true);
         }
 
+        PunishOnLeave(player);
+
         try
         {
             if (IsPlayerValid(player))
@@ -303,6 +314,7 @@ partial class MixScrims
         {
             logger.LogError(ex, $"HandleDisconnectedPlayer: Error closing active menu for captain \"{player?.Controller.PlayerName}\"");
         }
+
         CheckReadyPlayersToStart();
     }
 
@@ -318,13 +330,13 @@ partial class MixScrims
         if (player == null)
         {
             logger.LogError("HandleEventPlayerTeam: player is null");
-            return HookResult.Handled;
+            return HookResult.Stop;
         }
 
         if (player.PlayerPawn == null)
         {
             logger.LogError("HandleEventPlayerTeam: player's PlayerPawn is null");
-            return HookResult.Handled;
+            return HookResult.Stop;
         }
 
         // Use the NEW team from event, not current team
@@ -341,14 +353,28 @@ partial class MixScrims
     {
         if (player == null)
         {
-            logger.LogError("HandlePlayerChangeTeam: player is null");
-            return HookResult.Handled;
+            if (cfg.DetailedLogging)
+                logger.LogError("HandlePlayerChangeTeam: player is null");
+            return HookResult.Stop;
+        }
+
+        if (!player.IsValid)
+        {
+            if (cfg.DetailedLogging)
+                logger.LogError("HandlePlayerChangeTeam: player is not valid");
+            return HookResult.Stop;
         }
 
         if (player.PlayerPawn == null)
         {
-            logger.LogError("HandlePlayerChangeTeam: player PlayerPawn is null");
-            return HookResult.Handled;
+            if (cfg.DetailedLogging)
+                logger.LogError("HandlePlayerChangeTeam: player PlayerPawn is null");
+            return HookResult.Stop;
+        }
+
+        if (IsBot(player))
+        {
+            return HookResult.Continue;
         }
 
         // Skip validation during programmatic team moves (switch/stay sides, etc.)
@@ -379,7 +405,7 @@ partial class MixScrims
             if (player.PlayerID == captainCt?.PlayerID || player.PlayerID == captainT?.PlayerID)
             {
                 PrintMessageToPlayer(player, Core.Localizer["error.captainCannotChangeTeam"]);
-                return HookResult.Handled;
+                return HookResult.Stop;
             }
         }
 
@@ -398,7 +424,7 @@ partial class MixScrims
                     if (cfg.DetailedLogging)
                         logger.LogInformation($"HandlePlayerJoinTeam - PickingTeam: Player {player.Controller.PlayerName} attempted to join CT team without being picked.");
                     PrintMessageToPlayer(player, Core.Localizer["error.teamJoinDeniedCt"]);
-                    return HookResult.Handled;
+                    return HookResult.Stop;
                 }
             }
             if (teamTojoin == 2)
@@ -414,7 +440,7 @@ partial class MixScrims
                     if (cfg.DetailedLogging)
                         logger.LogInformation($"HandlePlayerJoinTeam - PickingTeam: Player {player.Controller.PlayerName} attempted to join T team without being picked.");
                     PrintMessageToPlayer(player, Core.Localizer["error.teamJoinDeniedT"]);
-                    return HookResult.Handled;
+                    return HookResult.Stop;
                 }
             }
         }
@@ -431,10 +457,6 @@ partial class MixScrims
                     if (cfg.DetailedLogging)
                         logger.LogInformation($"HandlePlayerJoinTeam - Match: Player {player.Controller.PlayerName} joined CT team.");
                     playingCtPlayers.Add(player);
-                    if ((Team)player.PlayerPawn.TeamNum != Team.CT)
-                    {
-                        player.ChangeTeam(Team.CT);
-                    }
                     return HookResult.Continue;
                 }
 
@@ -449,9 +471,7 @@ partial class MixScrims
                     if (cfg.DetailedLogging)
                         logger.LogInformation($"HandlePlayerJoinTeam - Match: Player {player.Controller.PlayerName} attempted to join CT team but it is full.");
                     PrintMessageToPlayer(player, Core.Localizer["error.teamFullCt"]);
-                    player.VoiceFlags = VoiceFlagValue.Muted;
-                    Core.Scheduler.DelayBySeconds(1f, () => PostTeamJoinCheckDuringMatch(player, Team.CT));
-                    return HookResult.Handled;
+                    return HookResult.Stop;
                 }
             }
 
@@ -462,10 +482,6 @@ partial class MixScrims
                     if (cfg.DetailedLogging)
                         logger.LogInformation($"HandlePlayerJoinTeam - Match: Player {player.Controller.PlayerName} joined T team.");
                     playingTPlayers.Add(player);
-                    if ((Team)player.PlayerPawn.TeamNum != Team.T)
-                    {
-                        player.ChangeTeam(Team.T);
-                    }
                     return HookResult.Continue;
                 }
 
@@ -480,9 +496,7 @@ partial class MixScrims
                     if (cfg.DetailedLogging)
                         logger.LogInformation($"HandlePlayerJoinTeam - Match: Player {player.Controller.PlayerName} attempted to join T team but it is full.");
                     PrintMessageToPlayer(player, Core.Localizer["error.teamFullT"]);
-                    player.VoiceFlags = VoiceFlagValue.Muted;
-                    Core.Scheduler.DelayBySeconds(1f, () => PostTeamJoinCheckDuringMatch(player, Team.T));
-                    return HookResult.Handled;
+                    return HookResult.Stop;
                 }
             }
 
@@ -492,61 +506,12 @@ partial class MixScrims
                     logger.LogInformation($"HandlePlayerJoinTeam - Match: Player {player.Controller.PlayerName} joined Spectators.");
                 playingCtPlayers.RemoveAll(p => p.PlayerID == player.PlayerID);
                 playingTPlayers.RemoveAll(p => p.PlayerID == player.PlayerID);
-                if ((Team)player.PlayerPawn.TeamNum != Team.Spectator)
-                {
-                    player.ChangeTeam(Team.Spectator);
-                }
                 return HookResult.Continue;
             }
         }
 
-        return HookResult.Handled;
+        return HookResult.Stop;
     }
-
-    /// <summary>
-    /// Performs post-join validation for a player joining a team during an active match and enforces team eligibility
-    /// rules.
-    /// </summary>
-    private void PostTeamJoinCheckDuringMatch(IPlayer? player, Team team)
-    {
-        if (cfg.DetailedLogging)
-            logger.LogInformation("PostTeamJoinCheckDuringMatch");
-
-        if (player == null)
-        {
-            logger.LogError("PostTeamJoinCheckDuringMatch: player is null, ignoring");
-            return;
-        }
-
-        if (!IsPlayerValid(player))
-        {
-            if (cfg.DetailedLogging)
-                logger.LogInformation("PostTeamJoinCheckDuringMatch: Player is invalid, ignoring");
-            return;
-        }
-
-        player.VoiceFlags = VoiceFlagValue.Normal;
-
-        var palyersInTeam = GetPlayersInTeam(team);
-
-        if (matchState == MatchState.KnifeRound ||
-            matchState == MatchState.Match ||
-            matchState == MatchState.PickingStartingSide ||
-            matchState == MatchState.Timeout)
-        {
-            if (cfg.DetailedLogging)
-                logger.LogInformation($"Players in team: {palyersInTeam.Count}");
-
-            if (palyersInTeam.Count > cfg.MinimumReadyPlayers / 2)
-            {
-                if (cfg.DetailedLogging)
-                    logger.LogInformation($"PostTeamJoinCheckDuringMatch: Player {player.Controller.PlayerName} tried to bypass team check outside of match, moving to Spectators");
-                PrintMessageToPlayer(player, Core.Localizer["error.triedToBypassTeamCheck"]);
-                player.ChangeTeam(Team.Spectator);
-            }
-        }
-    }
-
 
     /// <summary>
     /// Handles the end of the round freeze period by updating the respawn state for players.

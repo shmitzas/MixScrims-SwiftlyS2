@@ -3,16 +3,18 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.CommandLine;
+using SwiftlyS2.Shared.Commands;
 using SwiftlyS2.Shared.Plugins;
 
 namespace MixScrims;
 
 [PluginMetadata(
     Id = "MixScrims",
-    Version = "1.0.1",
+    Version = "1.1.0",
     Name = "MixScrims",
     Author = "Shmitzas",
-    Description = "A plugin for PUGS style matches, everything managed in-game instead of external panels or integrations."
+    Description = "A plugin for PUGS style matches, with in-game match management."
 )]
 public sealed partial class MixScrims(ISwiftlyCore core) : BasePlugin(core)
 {
@@ -54,11 +56,12 @@ public sealed partial class MixScrims(ISwiftlyCore core) : BasePlugin(core)
 
         RegisterListeners();
         ResetVariables();
-        RegisterCommandAliases();
+        RegisterCommands();
     }
 
     public override void Unload()
     {
+        UnregisterCommands();
         logger?.LogInformation("MixScrims unloading.");
     }
 
@@ -72,16 +75,68 @@ public sealed partial class MixScrims(ISwiftlyCore core) : BasePlugin(core)
     }
 
     /// <summary>
-    /// Registers predefined command aliases with aliases from config.
+    /// Registers available command handlers and their aliases with the command system.
     /// </summary>
-    private void RegisterCommandAliases()
+    private void RegisterCommands()
     {
-        foreach(var alias in cfg.CommandAliases)
+        // Define command mappings
+        var commandHandlers = new Dictionary<string, ICommandService.CommandListener>
         {
-            foreach(var command in alias.Value)
+            { "mix_reset", OnResetPlugin },
+            { "mix_start", OnForceMatchStart },
+            { "forceready", OnForceReady },
+            { "captain", OnCaptain },
+            { "map", OnGoToMap },
+            { "maps", OnListVoteableMaps },
+            { "maplist_all", OnListAllMaps },
+            { "ready", OnReady },
+            { "unready", OnUnReady },
+            { "revote", OnRevote },
+            { "timeout", OnTimeout },
+            { "invite", OnInvite },
+            { "stay", OnStay },
+            { "switch", OnSwitch }
+        };
+
+        if (cfg.AllowVolunteerCaptains)
+        {
+            commandHandlers["volunteer_captain"] = OnCaptainVolunteer;
+        }
+
+        if (cfg.DetailedLogging)
+            logger.LogInformation("Registering commands and aliases...");
+
+
+        foreach (var (commandName, handler) in commandHandlers)
+        {
+            if (!cfg.Commands.TryGetValue(commandName, out var commandInfo))
             {
-                Core.Command.RegisterCommandAlias(alias.Key, command);
+                if (cfg.DetailedLogging)
+                    logger.LogWarning("Command '{CommandName}' not found in config, skipping registration", commandName);
+                continue;
             }
+
+            // Register command with permission from config
+            Core.Command.RegisterCommand(commandName, handler, true, commandInfo.Permission);
+
+            // Register aliases
+            foreach (var alias in commandInfo.Aliases)
+            {
+                Core.Command.RegisterCommandAlias(commandName, alias);
+            }
+        }
+    }
+
+    private void UnregisterCommands()
+    {
+        var commandNames = cfg.Commands.Keys.ToList();
+        if (cfg.AllowVolunteerCaptains)
+        {
+            commandNames.Add("volunteer_captain");
+        }
+        foreach (var commandName in commandNames)
+        {
+            Core.Command.UnregisterCommand(commandName);
         }
     }
 

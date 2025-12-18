@@ -34,12 +34,14 @@ public sealed partial class MixScrims
             periodSeconds: cfg.ChatAnnouncementTimers.PlayersReadyStatus,
             task: PrintReadyAndNotReadyPlayers
         );
+        Core.Scheduler.StopOnMapChange(playerStatusTimer);
 
         // Command reminders
         commandRemindersTimer = Core.Scheduler.RepeatBySeconds(
             periodSeconds: cfg.ChatAnnouncementTimers.CommandReminders,
             task: PrintCommandReminders
         );
+        Core.Scheduler.StopOnMapChange(commandRemindersTimer);
     }
 
     /// <summary>
@@ -76,8 +78,7 @@ public sealed partial class MixScrims
             {
                 if (announce)
                 {
-                    var localizer = Core.Translation.GetPlayerLocalizer(player);
-                    player.SendChat(localizer["serverPrefix"] + " " + localizer["command.alreadyReady"]);
+                    PrintMessageToPlayer(player, Core.Localizer["command.alreadyReady"]);
                 }
                 return;
             }
@@ -91,8 +92,7 @@ public sealed partial class MixScrims
         }
         else
         {
-            var localizer = Core.Translation.GetPlayerLocalizer(player);
-            player.SendChat(localizer["serverPrefix"] + " " + localizer["command.invalidState", "ready"]);
+            PrintMessageToPlayer(player, Core.Localizer["command.invalidState", "ready"]);
         }
     }
 
@@ -111,8 +111,7 @@ public sealed partial class MixScrims
             {
                 if (announce)
                 {
-                    var localizer = Core.Translation.GetPlayerLocalizer(player);
-                    player.SendChat(localizer["serverPrefix"] + " " + localizer["command.setUnready", name]);
+                    PrintMessageToAllPlayers(Core.Localizer["command.setUnready", name]);
                 }
                 readyPlayers.Remove(existing);
                 CheckReadyPlayersToStart();
@@ -121,14 +120,12 @@ public sealed partial class MixScrims
 
             if (announce)
             {
-                PrintMessageToAllPlayers(Core.Localizer["command.alreadyUnready"]);
+                PrintMessageToPlayer(player, Core.Localizer["command.alreadyUnready"]);
             }
-            CheckReadyPlayersToStart();
         }
         else
         {
-            var localizer = Core.Translation.GetPlayerLocalizer(player);
-            player.SendChat(localizer["serverPrefix"] + " " + localizer["command.invalidState", "unready"]);
+            PrintMessageToPlayer(player, Core.Localizer["command.invalidState", "unready"]);
         }
     }
 
@@ -212,7 +209,7 @@ public sealed partial class MixScrims
     /// <summary>
     /// Sets the display name for the specified team.
     /// </summary>
-    private void SetTeamName(Team team, string? name)
+    private void SetTeamName(Team team, string? name = null)
     {
         var teamName = (name is null || string.IsNullOrWhiteSpace(name)) ? null : name.Trim();
 
@@ -257,7 +254,7 @@ public sealed partial class MixScrims
         {
             logger.LogError("SetCtCaptain: picked player is invalid");
             var localizer = Core.Translation.GetPlayerLocalizer(admin);
-            admin.SendChat(localizer["serverPrefix"] + " " + localizer["error.invalidPlayerPicked", pickedPlayerName]);
+            admin.SendChat(Core.Localizer["serverPrefix"] + " " + Core.Localizer["error.invalidPlayerPicked", pickedPlayerName]);
             return;
         }
 
@@ -278,7 +275,7 @@ public sealed partial class MixScrims
         {
             logger.LogError("SetTCaptain: picked player is invalid");
             var localizer = Core.Translation.GetPlayerLocalizer(admin);
-            admin.SendChat(localizer["serverPrefix"] + " " + localizer["error.invalidPlayerPicked", pickedPlayerName]);
+            admin.SendChat(Core.Localizer["serverPrefix"] + " " + Core.Localizer["error.invalidPlayerPicked", pickedPlayerName]);
             return;
         }
 
@@ -286,5 +283,110 @@ public sealed partial class MixScrims
         PickTCaptain(player);
 
         CloseMenuForPlayer(admin);
+    }
+
+    /// <summary>
+    /// Applies a configured punishment to a player who leaves the game, if enabled.
+    /// </summary>
+    private void PunishOnLeave(IPlayer? player)
+    {
+        if (player == null)
+        {
+            if (cfg.DetailedLogging)
+                logger.LogWarning("PunishOnLeave: player is null");
+            return;
+        }
+
+        if (!cfg.PunishPlayerLeaves)
+        {
+            if (cfg.DetailedLogging)
+                logger.LogInformation("PunishOnLeave: player leave punishment is disabled in config");
+            return;
+        }
+
+        if (cfg.PlayerLeavePunishment.Sensitivity == 0)
+        {
+            if (matchState == MatchState.Match
+                || matchState == MatchState.Timeout)
+            {
+                PunishPlayer(player);
+            }
+            else
+            {
+                if (cfg.DetailedLogging)
+                    logger.LogInformation("PunishOnLeave: match state {MatchState} does not meet sensitivity level 0 requirements", matchState);
+            }
+            return;
+        }
+
+        if (cfg.PlayerLeavePunishment.Sensitivity == 1)
+        {
+            if (matchState == MatchState.KnifeRound
+                || matchState == MatchState.PickingStartingSide
+                || matchState == MatchState.Match
+                || matchState == MatchState.Timeout)
+            {
+                PunishPlayer(player);
+            }
+            else
+            {
+                if (cfg.DetailedLogging)
+                    logger.LogInformation("PunishOnLeave: match state {MatchState} does not meet sensitivity level 1 requirements", matchState);
+            }
+            return;
+        }
+
+        if (cfg.PlayerLeavePunishment.Sensitivity == 2)
+        {
+            if (matchState == MatchState.PickingTeam
+                || matchState == MatchState.KnifeRound
+                || matchState == MatchState.PickingStartingSide
+                || matchState == MatchState.Match
+                || matchState == MatchState.Timeout)
+            {
+                PunishPlayer(player);
+            }
+            else
+            {
+                if (cfg.DetailedLogging)
+                    logger.LogInformation("PunishOnLeave: match state {MatchState} does not meet sensitivity level 2 requirements", matchState);
+            }
+            return;
+        }
+    }
+
+    private void PunishPlayer(IPlayer? player)
+    {
+        if (player == null)
+        {
+            if (cfg.DetailedLogging)
+                logger.LogWarning("PunishPlayer: player is null");
+            return;
+        }
+
+        var banCommand = FormatBanCommand(player);
+        var steamId = player.SteamID.ToString();
+        if (!string.IsNullOrWhiteSpace(banCommand))
+        {
+            Core.Scheduler.DelayBySeconds(cfg.PlayerLeavePunishment.WaitBeforePunishmentSeconds, () =>
+            {
+                Core.Scheduler.NextTick(() =>
+                { 
+                    var players = GetPlayers();
+                    if (@players.Any(p => p.SteamID.ToString() == steamId))
+                    {
+                        if (cfg.DetailedLogging)
+                            logger.LogInformation("PunishPlayer: Player {PlayerName} has rejoined, skipping punishment", player.Controller?.PlayerName ?? $"#{player.PlayerID}");
+                        return;
+                    }
+                    else
+                    {
+                        if (cfg.DetailedLogging)
+                            logger.LogInformation("PunishOnLeave: punishing player {PlayerName} for leaving", player.Controller?.PlayerName ?? $"#{player.PlayerID}");
+                        Core.Engine.ExecuteCommand(banCommand);
+                    }
+                });
+            });
+        }
     }
 }

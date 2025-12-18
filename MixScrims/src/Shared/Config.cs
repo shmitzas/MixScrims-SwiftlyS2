@@ -10,6 +10,8 @@ public class Config
     ];
     public int DiscordInviteDelayMinutes { get; set; } = 5;
     public int MinimumReadyPlayers { get; set; } = 10;
+    public bool SkipTeamPicking { get; set; } = false;
+    public bool MoveOverflowPlayersToSpec { get; set; } = true;
     public int DisallowVotePreviousMaps { get; set; } = 2;
     public int DefaultVoteTimeSeconds { get; set; } = 30;
     public int TimeoutDurationSeconds { get; set; } = 60;
@@ -23,25 +25,29 @@ public class Config
         "ready",
         "invite"
     ];
-    public Dictionary<string, List<string>> CommandAliases { get; set; } = new()
+    public bool PunishPlayerLeaves { get; set; } = false;
+    public LeavePunishment PlayerLeavePunishment { get; set; } = new();
+    public bool AllowVolunteerCaptains { get; set; } = false;
+    public Dictionary<string, CommandInfo> Commands { get; set; } = new()
     {
         // Admin commands
-        { "mix_reset", ["reset"] },
-        { "mix_start", ["start"] },
-        { "forceready", ["fr"] },
-        { "captain", ["cap", "capt"] },
-        { "map", ["changemap"] },
-        { "maps", ["maplist"] },
-        { "maplist_all", ["allmaps", "maps_all"] },
-    
+        { "mix_reset", new() { Permission = "managemix", Aliases = ["reset"] } },
+        { "mix_start", new() { Permission = "managemix", Aliases = ["start"] } },
+        { "forceready", new() { Permission = "managemix", Aliases = ["fr"] } },
+        { "captain", new() { Permission = "managemix", Aliases = ["cap", "capt"] } },
+        { "map", new() { Permission = "managemix", Aliases = ["changemap"] } },
+        { "maps", new() { Permission = "managemix", Aliases = ["maplist"] } },
+        { "maplist_all", new() { Permission = "managemix", Aliases = ["allmaps", "maps_all"] } },
+
         // Player commands
-        { "ready", ["r"] },
-        { "unready", ["u", "ur"] },
-        { "revote", ["rv"] },
-        { "timeout", ["pause"] },
-        { "invite", ["inv"] },
-        { "stay", ["st"] },
-        { "switch", ["swap"] }
+        { "ready", new() { Permission = "", Aliases = ["r"] } },
+        { "unready", new() { Permission = "", Aliases = ["u", "ur"] } },
+        { "revote", new() { Permission = "", Aliases = ["rv"] } },
+        { "timeout", new() { Permission = "", Aliases = ["pause"] } },
+        { "invite", new() { Permission = "", Aliases = ["inv"] } },
+        { "stay", new() { Permission = "", Aliases = ["st"] } },
+        { "switch", new() { Permission = "", Aliases = ["swap"] } },
+        { "volunteer_captain", new() { Permission = "", Aliases = ["volcap", "selfcapt"] }   }
     };
     public List<MapDetails> Maps { get; set; } =
     [
@@ -84,5 +90,20 @@ public class AnnouncementTimers
     public int PlayersReadyStatus { get; set; } = 30;
     public int CaptainsAnnouncements { get; set; } = 30;
     public int CommandReminders { get; set; } = 320;
+}
+
+public class LeavePunishment
+{
+    public string ServerCommand { get; set; } = "sw_ban {steamId} {reason} {duration}";
+    public int BanDurationMinutes { get; set; } = 15;
+    public string BanReason { get; set; } = "Leaving during a MixScrims match";
+    public int Sensitivity = 2;
+    public int WaitBeforePunishmentSeconds { get; set; } = 300;
+}
+
+public class CommandInfo
+{
+    public string Permission { get; set; } = string.Empty;
+    public List<string> Aliases { get; set; } = [];
 }
 

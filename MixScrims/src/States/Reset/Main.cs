@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using SwiftlyS2.Shared.Players;
 
 namespace MixScrims;
 
@@ -23,12 +24,15 @@ public partial class MixScrims
     {
         if (cfg.DetailedLogging)
             logger.LogInformation("ResetPluginState");
+
         matchState = MatchState.Warmup;
         readyPlayers.Clear();
         playingCtPlayers.Clear();
         playingTPlayers.Clear();
         captainCt = null;
         captainT = null;
+        SetTeamName(Team.CT);
+        SetTeamName(Team.T);
         pickedCtPlayers.Clear();
         pickedTPlayers.Clear();
         votedMaps.Clear();

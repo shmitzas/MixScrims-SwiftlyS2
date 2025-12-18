@@ -275,8 +275,11 @@ public partial class MixScrims
         {
             if (IsBot(player))
             {
+                if (cfg.DetailedLogging)
+                    logger.LogInformation($"Player is a bot, skipping move to SPEC" );
                 continue;
             }
+
             if (cfg.DetailedLogging)
                 logger.LogInformation($"Moving {player.Controller.PlayerName} to SPEC");
             player.ChangeTeam(Team.Spectator);
@@ -290,7 +293,10 @@ public partial class MixScrims
             {
                 Core.Scheduler.NextTick(() => player.SwitchTeam(Team.CT));
             }
-            player.ChangeTeam(Team.CT);
+            else
+            {
+                player.ChangeTeam(Team.CT);
+            }
         }
         
 
@@ -302,9 +308,12 @@ public partial class MixScrims
             {
                 Core.Scheduler.NextTick(() => player.SwitchTeam(Team.T));
             }
-            player.ChangeTeam(Team.T);
+            else
+            {
+                player.ChangeTeam(Team.T);
+            }
         }
-        
-        Core.Scheduler.NextTick(() => isMovingPlayersToTeams = false);
+
+        isMovingPlayersToTeams = false;
     }
 }
