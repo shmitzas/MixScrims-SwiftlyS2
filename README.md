@@ -177,9 +177,10 @@ All player commands support aliases defined in the configuration.
 
 **`!volunteer_captain` / `!volcap` / `!selfcapt`**
 - Volunteer yourself as a team captain
+- Usage: `!volunteer_captain <t/ct>` or `!volcap ct` or `!selfcapt t`
 - Only works if `AllowVolunteerCaptains` is enabled in config
-- First volunteer becomes CT captain, second becomes T captain
-- Available during Map Chosen state before automatic captain selection
+- Must specify which team (CT or T) you want to captain for
+- Available during Warmup, Map Loading, or Map Chosen state before automatic captain selection
 
 **`!stay` / `!st`**
 - Winning knife round captain keeps current team sides
