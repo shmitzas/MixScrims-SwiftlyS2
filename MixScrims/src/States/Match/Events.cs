@@ -36,7 +36,6 @@ public partial class MixScrims
             if (cfg.DetailedLogging)
                 logger.LogInformation("Match halftime announced - disabling team validation");
             
-            // Disable validation IMMEDIATELY before any swaps occur
             isMovingPlayersToTeams = true;
         }
 
@@ -54,10 +53,8 @@ public partial class MixScrims
             if (cfg.DetailedLogging)
                 logger.LogInformation("Round started after halftime - updating team lists");
             
-            // Wait for the game engine to complete the swap
             Core.Scheduler.DelayBySeconds(1f, () =>
             {
-                // Now swap our internal lists to match the game state
                 var oldPlayingCtPlayers = playingCtPlayers.ToList();
                 var oldPlayingTPlayers = playingTPlayers.ToList();
                 playingCtPlayers = oldPlayingTPlayers;
@@ -66,7 +63,6 @@ public partial class MixScrims
                 if (cfg.DetailedLogging)
                     logger.LogInformation($"Halftime team lists updated - CT: {playingCtPlayers.Count}, T: {playingTPlayers.Count}");
 
-                // Re-enable validation after players have settled
                 Core.Scheduler.DelayBySeconds(1f, () =>
                 {
                     isMovingPlayersToTeams = false;

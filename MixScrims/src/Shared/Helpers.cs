@@ -20,36 +20,15 @@ public sealed partial class MixScrims
             return;
         }
 
-        var slot = player?.Slot ?? -1;
-        var name = player?.Controller.PlayerName;
-
         Core.Scheduler.NextTick(() =>
         {
-            IPlayer? target = null;
-
-            if (slot >= 0)
-            {
-                target = Core.PlayerManager.GetAllPlayers().FirstOrDefault(p => p.Slot == slot);
-            }
-
-            target ??= (!string.IsNullOrEmpty(name) ? GetPlayerByName(name!) : null);
-
-            if (!IsPlayerValid(target))
-            {
-                logger.LogDebug("PrintMessageToPlayer: target invalid at print time (slot={Slot}, name={Name})", slot, name);
-                return;
-            }
-
-            if (target == null || !target.IsValid)
+             if (player == null || !player.IsValid)
             {
                 logger.LogDebug("PrintMessageToPlayer: target is not a player entity anymore");
                 return;
             }
 
-            // Use localizer for player's language, better long term :)
-            var localizer = Core.Translation.GetPlayerLocalizer(target);
-
-            target.SendChat(localizer["serverPrefix"] + " " + message);
+            player.SendChat(Core.Localizer["serverPrefix"] + " " + message);
         });
     }
 
@@ -106,15 +85,9 @@ public sealed partial class MixScrims
     /// </summary>
     private bool IsPlayerValid(IPlayer? player)
     {
-        if (pluginState == PluginState.Staging
-            && player != null
-            && player.PlayerPawn != null
-            && player.PlayerPawn.Bot != null
-            && player.PlayerPawn.Bot.IsValid)
-            return true;
-
         if (player != null && player.IsValid)
             return true;
+        
         return false;
     }
 
@@ -184,10 +157,7 @@ public sealed partial class MixScrims
     private List<MapDetails> GetMapsToVote()
     {
         return cfg.Maps
-            .Where(m => m.CanBeVoted && !playedMaps.Any(pm => pm.MapName == m.MapName))
-            .GroupBy(m => m.MapName)           // Group by MapName
-            .Select(g => g.First())            // Take first from each group
-            .ToList();
+            .Where(m => m.CanBeVoted && !playedMaps.Any(pm => pm.MapName == m.MapName)).ToList();
     }
 
     /// <summary>
@@ -251,11 +221,13 @@ public sealed partial class MixScrims
     {
         if (!canPlayerBeRespawned)
         {
-            logger.LogInformation("RespawnPlayer: Player respawning is currently disabled.");
+            if (cfg.DetailedLogging)
+                logger.LogInformation("RespawnPlayer: Player respawning is currently disabled.");
             return;
         }
 
-        logger.LogInformation("Respawning player {PlayerName}", player.Controller.PlayerName);
+        if (cfg.DetailedLogging)
+            logger.LogInformation("Respawning player {PlayerName}", player.Controller.PlayerName);
 
         try
         {
@@ -288,5 +260,26 @@ public sealed partial class MixScrims
                 Core.MenusAPI.CloseMenuForPlayer(player, currentMenu);
             }
         }
+    }
+
+    /// <summary>
+    /// Formats a server ban command by replacing placeholders with the specified Steam ID, duration, and reason.
+    /// </summary>
+    private string FormatBanCommand(IPlayer? player)
+    {
+        if (player == null)
+        {
+            if (cfg.DetailedLogging)
+                logger.LogWarning("FormatBanCommand: player is null");
+            
+            return string.Empty;
+        }
+
+        var steamId = player.SteamID.ToString();
+        var command = cfg.PlayerLeavePunishment.ServerCommand;
+        command = command.Replace("{steamId}", steamId);
+        command = command.Replace("{duration}", cfg.PlayerLeavePunishment.BanDurationMinutes.ToString());
+        command = command.Replace("{reason}", cfg.PlayerLeavePunishment.BanReason);
+        return command;
     }
 }

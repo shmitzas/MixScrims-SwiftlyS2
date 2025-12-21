@@ -25,6 +25,8 @@ public partial class MixScrims
     }
 
     private TimeoutPending timeoutPending = TimeoutPending.None;
+    private Queue<Team> timeoutQueue = new Queue<Team>();
+    private bool isTimeoutActive = false;
     private int timeoutVoteYesCount = 0;
     private int timeoutVoteNoCount = 0;
     private CancellationTokenSource? timeoutVoteTimer = null;
@@ -36,6 +38,25 @@ public partial class MixScrims
     /// </summary>
     private void StartTimeout(Team team)
     {
+        // If a timeout is already active, queue this one
+        if (isTimeoutActive)
+        {
+            if (!timeoutQueue.Contains(team))
+            {
+                timeoutQueue.Enqueue(team);
+                if (team == Team.CT)
+                {
+                    PrintMessageToAllPlayers(Core.Localizer["announcement.timeoutQueuedCt"]);
+                }
+                else if (team == Team.T)
+                {
+                    PrintMessageToAllPlayers(Core.Localizer["announcement.timeoutQueuedT"]);
+                }
+            }
+            return;
+        }
+
+        isTimeoutActive = true;
         matchState = MatchState.Timeout;
         PauseMatch();
 
@@ -57,14 +78,43 @@ public partial class MixScrims
     }
 
     /// <summary>
-    /// Ends timeout
+    /// Ends timeout and starts the next one in queue if available
     /// </summary>
     private void EndTimeout()
     {
         PrintMessageToAllPlayers(Core.Localizer["stateChanged.timeoutEnded"]);
-        matchState = MatchState.Match;
+        isTimeoutActive = false;
         timeoutPending = TimeoutPending.None;
-        UnpauseMatch();
+
+        // Check if there's a queued timeout
+        if (timeoutQueue.Count > 0)
+        {
+            var nextTeam = timeoutQueue.Dequeue();
+            
+            // If we're in freeze time, start immediately
+            if (isFreezeTime)
+            {
+                StartTimeout(nextTeam);
+            }
+            else
+            {
+                // Otherwise, set as pending for next freeze time
+                timeoutPending = nextTeam == Team.CT ? TimeoutPending.CT : TimeoutPending.T;
+                if (nextTeam == Team.CT)
+                {
+                    PrintMessageToAllPlayers(Core.Localizer["announcement.timeoutPendingCt"]);
+                }
+                else if (nextTeam == Team.T)
+                {
+                    PrintMessageToAllPlayers(Core.Localizer["announcement.timeoutPendingT"]);
+                }
+            }
+        }
+        else
+        {
+            matchState = MatchState.Match;
+            UnpauseMatch();
+        }
     }
 
     /// <summary>
@@ -85,7 +135,6 @@ public partial class MixScrims
             return;
         }
 
-        // Build Yes/No vote menu
         var builder = Core.MenusAPI
             .CreateBuilder()
             .Design.SetMenuTitle(Core.Localizer["menu.timeoutVote"])
@@ -128,11 +177,9 @@ public partial class MixScrims
             }
         }
 
-        // Announce vote progress baseline
         var totalEligibleVotes = Math.Max(0, players.Count - 1);
         PrintMessageToTeam(team, Core.Localizer["announcement.timeoutVoteProgress", timeoutVoteYesCount, timeoutVoteNoCount, totalEligibleVotes]);
 
-        // Schedule vote result
         timeoutVoteTimer = Core.Scheduler.DelayBySeconds(cfg.DefaultVoteTimeSeconds, () => TimeoutVoteResult(team));
     }
 
@@ -156,7 +203,6 @@ public partial class MixScrims
             return;
         }
 
-        // Tally the vote
         if (string.Equals(choice, "Yes", StringComparison.OrdinalIgnoreCase))
         {
             timeoutVoteYesCount++;
@@ -172,7 +218,6 @@ public partial class MixScrims
 
         PrintMessageToTeam(team, Core.Localizer["announcement.timeoutVoteProgress", timeoutVoteYesCount, timeoutVoteNoCount, totalEligibleVotes]);
 
-        // Optional early resolution: if everyone except caller has voted
         if (timeoutVoteYesCount + timeoutVoteNoCount >= totalEligibleVotes)
         {
             timeoutVoteTimer?.Cancel();
@@ -219,7 +264,7 @@ public partial class MixScrims
             }
             else
             {
-                PrintMessageToTeam(Team.CT, Core.Localizer["announcement.timeoutVoteFailed"]);
+                PrintMessageToTeam(Team.CT, Core.Localizer["announcement.timeoutNotEnoughVotes"]);
             }
         }
         if (team == Team.T)
@@ -236,7 +281,7 @@ public partial class MixScrims
             }
             else
             {
-                PrintMessageToTeam(Team.T, Core.Localizer["announcement.timeoutVoteFailed"]);
+                PrintMessageToTeam(Team.T, Core.Localizer["announcement.timeoutNotEnoughVotes"]);
             }
         }
     }

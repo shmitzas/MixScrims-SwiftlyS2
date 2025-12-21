@@ -195,32 +195,69 @@ public partial class MixScrims
 
         Core.Scheduler.DelayBySeconds(0.2f, () =>
         {
-            SetTeamName(Team.CT, captainCt?.Controller.PlayerName);
-            SetTeamName(Team.T, captainT?.Controller.PlayerName);
-
-            isMovingPlayersToTeams = true;
-
-            foreach (var player in playingTPlayers)
+            Core.Scheduler.NextWorldUpdate(() => 
             {
-                if (cfg.DetailedLogging)
-                    logger.LogInformation($"SwitchStartingSides: Moving {player.Controller.PlayerName} to T");
-                if (IsBot(player))
-                {
-                    Core.Scheduler.NextTick(() => player.SwitchTeam(Team.T));
-                }
-                player.ChangeTeam(Team.T);
-            }
+                SetTeamName(Team.CT, captainCt?.Controller.PlayerName);
+                SetTeamName(Team.T, captainT?.Controller.PlayerName);
 
-            foreach (var player in playingCtPlayers)
-            {
-                if (cfg.DetailedLogging)
-                    logger.LogInformation($"SwitchStartingSides: Moving {player.Controller.PlayerName} to CT");
-                if (IsBot(player))
+                isMovingPlayersToTeams = true;
+
+                foreach (var player in playingTPlayers)
                 {
-                    Core.Scheduler.NextTick(() => player.SwitchTeam(Team.CT));
+                    if (player != null && player.IsValid)
+                    {
+                        if (cfg.DetailedLogging)
+                            logger.LogInformation($"SwitchStartingSides: Moving {player.Controller.PlayerName} to T");
+                        if (IsBot(player))
+                        {
+                            Core.Scheduler.NextTick(() => player.SwitchTeam(Team.T));
+                        }
+
+                        try
+                        {
+                            player.ChangeTeam(Team.T);
+                        }
+                        catch (Exception ex)
+                        {
+                            if (cfg.DetailedLogging)
+                                logger.LogWarning(ex, $"SwitchStartingSides: Error changing team for player.");
+                        }
+                    }
+                    else
+                    {
+                        if (cfg.DetailedLogging)
+                            logger.LogWarning("SwitchStartingSides: Encountered invalid player in playingTPlayers list.");
+                    }
                 }
-                player.ChangeTeam(Team.CT);
-            }
+
+                foreach (var player in playingCtPlayers)
+                {
+                    if (player != null && player.IsValid)
+                    {
+                        if (cfg.DetailedLogging)
+                            logger.LogInformation($"SwitchStartingSides: Moving {player.Controller.PlayerName} to CT");
+                        if (IsBot(player))
+                        {
+                            Core.Scheduler.NextTick(() => player.SwitchTeam(Team.CT));
+                        }
+
+                        try
+                        {
+                            player.ChangeTeam(Team.T);
+                        }
+                        catch (Exception ex)
+                        {
+                            if (cfg.DetailedLogging)
+                                logger.LogWarning(ex, $"SwitchStartingSides: Error changing team for player.");
+                        }
+                    }
+                    else
+                    {
+                        if (cfg.DetailedLogging)
+                            logger.LogWarning("SwitchStartingSides: Encountered invalid player in playingCtPlayers list.");
+                    }
+                }
+            });
 
             Core.Scheduler.NextTick(() => isMovingPlayersToTeams = false);
 
@@ -275,8 +312,11 @@ public partial class MixScrims
         {
             if (IsBot(player))
             {
+                if (cfg.DetailedLogging)
+                    logger.LogInformation($"Player is a bot, skipping move to SPEC" );
                 continue;
             }
+
             if (cfg.DetailedLogging)
                 logger.LogInformation($"Moving {player.Controller.PlayerName} to SPEC");
             player.ChangeTeam(Team.Spectator);
@@ -290,7 +330,10 @@ public partial class MixScrims
             {
                 Core.Scheduler.NextTick(() => player.SwitchTeam(Team.CT));
             }
-            player.ChangeTeam(Team.CT);
+            else
+            {
+                player.ChangeTeam(Team.CT);
+            }
         }
         
 
@@ -302,9 +345,12 @@ public partial class MixScrims
             {
                 Core.Scheduler.NextTick(() => player.SwitchTeam(Team.T));
             }
-            player.ChangeTeam(Team.T);
+            else
+            {
+                player.ChangeTeam(Team.T);
+            }
         }
-        
-        Core.Scheduler.NextTick(() => isMovingPlayersToTeams = false);
+
+        isMovingPlayersToTeams = false;
     }
 }

@@ -42,5 +42,7 @@ public partial class MixScrims
         }
 
         canPlayerBeRespawned = true;
+
+        StartAnnouncementTimers();
     }
 }

@@ -88,7 +88,7 @@ public partial class MixScrims
                 .Select(p => playerColors[p.PlayerID]));
             if (ocupiedColors.Count >= 5)
                 return null;
-            // free colors can be from 1 to 5
+
             for (int color = 0; color < 5; color++)
             {
                 if (!ocupiedColors.Contains(color))
@@ -103,7 +103,7 @@ public partial class MixScrims
                 .Select(p => playerColors[p.PlayerID]));
             if (ocupiedColors.Count >= 5)
                 return null;
-            // free colors can be from 1 to 5
+
             for (int color = 0; color < 5; color++)
             {
                 if (!ocupiedColors.Contains(color))
