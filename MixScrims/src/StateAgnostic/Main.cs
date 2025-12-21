@@ -12,7 +12,6 @@ namespace MixScrims;
 
 public sealed partial class MixScrims
 {
-    // Timers (CancellationTokenSource in SwiftlyS2)
     private CancellationTokenSource? playerStatusTimer;
     private CancellationTokenSource? commandRemindersTimer;
     private CancellationTokenSource? captainsAnnouncementsTimer;
@@ -370,10 +369,24 @@ public sealed partial class MixScrims
         {
             Core.Scheduler.DelayBySeconds(cfg.PlayerLeavePunishment.WaitBeforePunishmentSeconds, () =>
             {
-                Core.Scheduler.NextTick(() =>
+                Core.Scheduler.NextWorldUpdate(() =>
                 { 
                     var players = GetPlayers();
-                    if (@players.Any(p => p.SteamID.ToString() == steamId))
+                    if (players == null)
+                    {
+                        if (cfg.DetailedLogging)
+                            logger.LogWarning("PunishPlayer: players list is null, cannot verify rejoin status");
+                        return;
+                    }
+
+                    if (players.Count == 0)
+                    {
+                        if (cfg.DetailedLogging)
+                            logger.LogWarning("PunishPlayer: players list is empty, cannot verify rejoin status");
+                        return;
+                    }
+
+                    if (players.Any(p => p.SteamID.ToString() == steamId))
                     {
                         if (cfg.DetailedLogging)
                             logger.LogInformation("PunishPlayer: Player {PlayerName} has rejoined, skipping punishment", player.Controller?.PlayerName ?? $"#{player.PlayerID}");

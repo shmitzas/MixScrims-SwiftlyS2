@@ -33,7 +33,6 @@ public partial class MixScrims
         // shuffle maps order
         mapsToVote = mapsToVote.OrderBy(_ => Guid.NewGuid()).ToList();
 
-        // Build the map voting menu
         var builder = Core.MenusAPI
             .CreateBuilder()
             .Design.SetMenuTitle(Core.Localizer["menu.mapVotingTitle"])
@@ -62,7 +61,6 @@ public partial class MixScrims
         mapVotingMenu = null;
         mapVotingMenu = builder.Build();
 
-        // Open menu for eligible players
         var players = GetPlayers();
         foreach (var player in players)
         {
@@ -72,7 +70,6 @@ public partial class MixScrims
             DisplayMapVotingMenu(player);
         }
 
-        // Announce picked map after configured time
         var token = Core.Scheduler.DelayBySeconds(cfg.DefaultVoteTimeSeconds, AnnouncePickedMap);
         Core.Scheduler.StopOnMapChange(token);
     }
@@ -96,7 +93,6 @@ public partial class MixScrims
             return;
         }
 
-        // Remove previous vote if any
         var previouslyVoted = votedMaps.FirstOrDefault(m => m.VotedBy.Any(v => v == player.PlayerID));
         if (previouslyVoted != null)
         {
@@ -106,7 +102,6 @@ public partial class MixScrims
             previouslyVoted.VotedBy.Remove(player.PlayerID);
         }
 
-        // Add vote
         var existingVote = votedMaps.FirstOrDefault(m => m.Map.MapName == votedMap.MapName);
         int votes;
         if (existingVote != null)

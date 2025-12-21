@@ -118,7 +118,6 @@ partial class MixScrims
                 Core.Scheduler.DelayBySeconds(2, async () =>
                 {
                     await player.SwitchTeamAsync(Team.T);
-                    // Wait a tick for game state to update
                     Core.Scheduler.NextTick(() => RespawnPlayer(player));
                 });
                 return;
@@ -132,7 +131,6 @@ partial class MixScrims
                 Core.Scheduler.DelayBySeconds(2, async () =>
                 {
                     await player.SwitchTeamAsync(Team.CT);
-                    // Wait a tick for game state to update
                     Core.Scheduler.NextTick(() => RespawnPlayer(player));
                 });
                 return;
@@ -148,7 +146,6 @@ partial class MixScrims
                     Core.Scheduler.DelayBySeconds(2, async () =>
                     {
                         await player.SwitchTeamAsync(Team.CT);
-                        // Wait a tick for game state to update
                         Core.Scheduler.NextTick(() => RespawnPlayer(player));
                     });
                 }
@@ -160,7 +157,6 @@ partial class MixScrims
                     Core.Scheduler.DelayBySeconds(2, async () =>
                     {
                         await player.SwitchTeamAsync(Team.T);
-                        // Wait a tick for game state to update
                         Core.Scheduler.NextTick(() => RespawnPlayer(player));
                     });
                 }
@@ -339,7 +335,6 @@ partial class MixScrims
             return HookResult.Stop;
         }
 
-        // Use the NEW team from event, not current team
         int teamTojoin = @event.Team;
 
         return HandlePlayerChangeTeam(player, teamTojoin);
@@ -354,21 +349,21 @@ partial class MixScrims
         if (player == null)
         {
             if (cfg.DetailedLogging)
-                logger.LogError("HandlePlayerChangeTeam: player is null");
+                logger.LogWarning("HandlePlayerChangeTeam: player is null");
             return HookResult.Stop;
         }
 
         if (!player.IsValid)
         {
             if (cfg.DetailedLogging)
-                logger.LogError("HandlePlayerChangeTeam: player is not valid");
+                logger.LogWarning("HandlePlayerChangeTeam: player is not valid");
             return HookResult.Stop;
         }
 
         if (player.PlayerPawn == null)
         {
             if (cfg.DetailedLogging)
-                logger.LogError("HandlePlayerChangeTeam: player PlayerPawn is null");
+                logger.LogWarning("HandlePlayerChangeTeam: player PlayerPawn is null");
             return HookResult.Stop;
         }
 
@@ -389,8 +384,6 @@ partial class MixScrims
             matchState == MatchState.MapVoting ||
             matchState == MatchState.MapChosen)
         {
-            // Only call HandlePlayerChangeTeamOnJoin once - it removes the player from freshlyJoinedPlayers
-            // Subsequent team changes triggered by SwitchTeamAsync will skip this block
             if (freshlyJoinedPlayers.Any(p => p == player.Slot))
             {
                 HandlePlayerChangeTeamOnJoin(player);

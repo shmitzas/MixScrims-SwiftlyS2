@@ -264,8 +264,6 @@ partial class MixScrims
 			return;
 		}
 
-        
-
         if (matchState != MatchState.PickingStartingSide)
 		{
 			PrintMessageToPlayer(player, Core.Localizer["command.invalidState", "sidePick"]);
@@ -309,7 +307,6 @@ partial class MixScrims
 			return;
 		}
 		
-
         var admin = context.Sender;
         if (admin == null || !context.IsSentByPlayer)
         {

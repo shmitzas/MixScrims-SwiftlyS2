@@ -65,19 +65,27 @@ public partial class MixScrims
 
         if (captainCt != null)
         {
+            if (cfg.DetailedLogging)
+                logger.LogInformation($"Captain CT: {captainCt.Controller.PlayerName}");
             PrintMessageToAllPlayers(Core.Localizer["announcement.captainChosenCt", captainCt.Controller.PlayerName]);
         }
         else
         {
+            if (cfg.DetailedLogging)
+                logger.LogInformation("Captain CT: Not chosen");
             PrintMessageToAllPlayers(Core.Localizer["announcement.captainNotChosenCt"]);
         }
 
         if (captainT != null)
         {
+            if (cfg.DetailedLogging)
+                logger.LogInformation($"Captain T: {captainT.Controller.PlayerName}");
             PrintMessageToAllPlayers(Core.Localizer["announcement.captainChosenT", captainT.Controller.PlayerName]);
         }
         else
         {
+            if (cfg.DetailedLogging)
+                logger.LogInformation("Captain T: Not chosen");
             PrintMessageToAllPlayers(Core.Localizer["announcement.captainNotChosenT"]);
         }
     }

@@ -87,13 +87,6 @@ public sealed partial class MixScrims
     {
         if (player != null && player.IsValid)
             return true;
-
-        if (pluginState == PluginState.Staging
-            && player != null
-            && player.PlayerPawn != null
-            && player.PlayerPawn.Bot != null
-            && player.PlayerPawn.Bot.IsValid)
-            return true;
         
         return false;
     }
@@ -164,10 +157,7 @@ public sealed partial class MixScrims
     private List<MapDetails> GetMapsToVote()
     {
         return cfg.Maps
-            .Where(m => m.CanBeVoted && !playedMaps.Any(pm => pm.MapName == m.MapName))
-            .GroupBy(m => m.MapName)           // Group by MapName
-            .Select(g => g.First())            // Take first from each group
-            .ToList();
+            .Where(m => m.CanBeVoted && !playedMaps.Any(pm => pm.MapName == m.MapName)).ToList();
     }
 
     /// <summary>
@@ -231,11 +221,13 @@ public sealed partial class MixScrims
     {
         if (!canPlayerBeRespawned)
         {
-            logger.LogInformation("RespawnPlayer: Player respawning is currently disabled.");
+            if (cfg.DetailedLogging)
+                logger.LogInformation("RespawnPlayer: Player respawning is currently disabled.");
             return;
         }
 
-        logger.LogInformation("Respawning player {PlayerName}", player.Controller.PlayerName);
+        if (cfg.DetailedLogging)
+            logger.LogInformation("Respawning player {PlayerName}", player.Controller.PlayerName);
 
         try
         {
@@ -278,9 +270,8 @@ public sealed partial class MixScrims
         if (player == null)
         {
             if (cfg.DetailedLogging)
-            {
                 logger.LogWarning("FormatBanCommand: player is null");
-            }
+            
             return string.Empty;
         }
 

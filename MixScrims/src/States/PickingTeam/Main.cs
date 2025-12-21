@@ -77,7 +77,6 @@ public partial class MixScrims
         Core.Engine.ExecuteCommand("exec mixscrims/teampick.cfg");
         PauseMatch();
 
-        // Assign players to their current teams
         var players = GetPlayingPlayers();
 
         if (captainCt != null && captainCt.IsValid)
@@ -98,7 +97,7 @@ public partial class MixScrims
                 && player.IsValid
                 && player.PlayerPawn != null)
             {
-                if ((Team)player.PlayerPawn.TeamNum == Team.T && !playingTPlayers.Contains(player))
+                if ((Team)player.PlayerPawn.TeamNum == Team.T && !playingTPlayers.Any(p => p.PlayerID == player.PlayerID))
                 {
                     if (cfg.MoveOverflowPlayersToSpec)
                     {
@@ -115,7 +114,7 @@ public partial class MixScrims
                     playingTPlayers.Add(player);
                 }
 
-                if ((Team)player.PlayerPawn.TeamNum == Team.CT && !playingCtPlayers.Contains(player))
+                if ((Team)player.PlayerPawn.TeamNum == Team.CT && !playingCtPlayers.Any(p => p.PlayerID == player.PlayerID))
                 {
                     if (cfg.MoveOverflowPlayersToSpec)
                     {
@@ -236,10 +235,14 @@ public partial class MixScrims
     {
         if (captainCt == null)
         {
+            if (cfg.DetailedLogging)
+                logger.LogInformation("PickCaptains: CT captain is null, picking now.");
             PickCtCaptain(null);
         }
         if (captainT == null)
         {
+            if (cfg.DetailedLogging)
+                logger.LogInformation("PickCaptains: T captain is null, picking now.");
             PickTCaptain(null);
         }
 
@@ -437,7 +440,6 @@ public partial class MixScrims
         }
         player.ChangeTeam(Team.T);
 
-        // Close active menu if any
         var currentMenu = Core.MenusAPI.GetCurrentMenu(captain);
         if (currentMenu != null)
         {

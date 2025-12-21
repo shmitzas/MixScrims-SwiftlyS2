@@ -135,7 +135,6 @@ public partial class MixScrims
             return;
         }
 
-        // Build Yes/No vote menu
         var builder = Core.MenusAPI
             .CreateBuilder()
             .Design.SetMenuTitle(Core.Localizer["menu.timeoutVote"])
@@ -178,11 +177,9 @@ public partial class MixScrims
             }
         }
 
-        // Announce vote progress baseline
         var totalEligibleVotes = Math.Max(0, players.Count - 1);
         PrintMessageToTeam(team, Core.Localizer["announcement.timeoutVoteProgress", timeoutVoteYesCount, timeoutVoteNoCount, totalEligibleVotes]);
 
-        // Schedule vote result
         timeoutVoteTimer = Core.Scheduler.DelayBySeconds(cfg.DefaultVoteTimeSeconds, () => TimeoutVoteResult(team));
     }
 
@@ -206,7 +203,6 @@ public partial class MixScrims
             return;
         }
 
-        // Tally the vote
         if (string.Equals(choice, "Yes", StringComparison.OrdinalIgnoreCase))
         {
             timeoutVoteYesCount++;
@@ -222,7 +218,6 @@ public partial class MixScrims
 
         PrintMessageToTeam(team, Core.Localizer["announcement.timeoutVoteProgress", timeoutVoteYesCount, timeoutVoteNoCount, totalEligibleVotes]);
 
-        // Optional early resolution: if everyone except caller has voted
         if (timeoutVoteYesCount + timeoutVoteNoCount >= totalEligibleVotes)
         {
             timeoutVoteTimer?.Cancel();
