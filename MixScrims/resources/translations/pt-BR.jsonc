@@ -1,4 +1,5 @@
 {
+  // Valid colors are: [default], [darkred], [green], [lightyellow], [lightblue], [olive], [lime], [red], [purple], [grey], [yellow], [gold], [silver], [blue], [darkblue], [bluegrey], [magenta], [lightred]
   "serverPrefix": "[ [darkred]ExampleServer [default]]",
   "announcement.notReadyPlayers": "Jogadores [darkred]não pronto: [grey]{0}[default]",
   "announcement.readyStatus": "Jogadores [green]pronto [[red]{0}[default]/[green]{1}[default]]",
